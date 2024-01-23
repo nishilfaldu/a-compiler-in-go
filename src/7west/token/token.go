@@ -33,3 +33,20 @@ const (
 	FUNCTION = "FUNCTION"
 	LET      = "LET"
 )
+
+var keywords = map[string]TokenType{
+	"fn":  FUNCTION,
+	"let": LET,
+}
+
+func LookupIdent(ident string) TokenType {
+	if tok, ok := keywords[ident]; ok {
+		return tok
+	}
+	// The below is a longer version of code for a better understanding of Go
+	// tok, ok := keywords[ident]
+	// if ok {
+	// 	return tok
+	// }
+	return IDENT
+}

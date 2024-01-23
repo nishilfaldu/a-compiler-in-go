@@ -55,9 +55,41 @@ func (l *Lexer) NextToken() token.Token {
 		// we're at the end of the input
 		tok.Literal = ""
 		tok.Type = token.EOF
+	default:
+		// if it's not one of the above characters, it could be the start of an identifier or an integer literal
+		if isLetter(l.ch) {
+			// if it's a letter, read in the entire identifier
+			tok.Literal = l.readIdentifier()
+			// and check whether it's a keyword
+			// tok.Type = token.LookupIdent(tok.Literal)
+			// and return early
+			return tok
+		} else {
+			// if it's not a letter, it could be an integer literal
+			// if it's not a digit, it's an illegal character
+			tok = newToken(token.ILLEGAL, l.ch)
+		}
 	}
 	l.readChar()
 	return tok
+}
+
+func (l *Lexer) readIdentifier() string {
+	// remember our current position in the input string
+	position := l.position
+	// keep reading until we encounter a non-letter-character
+	for isLetter(l.ch) {
+		// advance our position in the input string
+		l.readChar()
+	}
+	// return the substring of the input string from our starting position to our current position
+	return l.input[position:l.position]
+}
+
+func isLetter(ch byte) bool {
+	// we're only supporting ASCII characters
+	return 'a' <= ch && ch <= 'z' || 'A' <= ch &&
+		ch <= 'Z' || ch == '_'
 }
 
 func newToken(tokenType token.TokenType, ch byte) token.Token {
