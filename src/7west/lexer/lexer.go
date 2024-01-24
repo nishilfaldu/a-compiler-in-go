@@ -9,10 +9,11 @@ type Lexer struct {
 	position     int  // current position in input (points to current char)
 	readPosition int  // current reading position in input (after current char)
 	ch           byte // current char under examination
+	line         int  // line count
 }
 
 func New(input string) *Lexer {
-	l := &Lexer{input: input}
+	l := &Lexer{input: input, line: 1}
 	l.readChar()
 	return l
 }
@@ -86,6 +87,19 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.LBRACE, l.ch)
 	case '}':
 		tok = newToken(token.RBRACE, l.ch)
+	case '"':
+		// read the next character to skip the first "
+		l.readChar()
+		str := l.readString()
+		print(str, " .  str\n")
+		// if it's a double quote, read the entire string
+		if str == "" {
+			// if we've reached the end of the input, return an error
+			tok = newErrorToken(token.ERROR, "unterminated string")
+		} else {
+			tok.Type = token.STRING
+			tok.Literal = str
+		}
 	case 0:
 		// we're at the end of the input
 		tok.Literal = ""
@@ -110,7 +124,7 @@ func (l *Lexer) NextToken() token.Token {
 		} else {
 			// if it's not a letter, it could be an integer literal
 
-			// if it's not a digit, it's an illegal character
+			// if it's not a digit, it's an illegal character or you can throw an error
 			tok = newToken(token.ILLEGAL, l.ch)
 		}
 	}
@@ -142,6 +156,26 @@ func (l *Lexer) readNumber() string {
 	return l.input[position:l.position]
 }
 
+func (l *Lexer) readString() string {
+	// remember our current position in the input string
+	position := l.position
+	// keep reading until we encounter a double quote
+	for {
+		if l.ch == '"' {
+			break
+		} else if l.ch == 0 {
+			// if we've reached the end of the input, return an empty string
+			return ""
+		} else if l.ch == '\n' {
+			// if we've reached a newline, increment the line count
+			l.line += 1
+		}
+		l.readChar()
+	}
+	// return the substring of the input string from our starting position to our current position
+	return l.input[position:l.position]
+}
+
 func isLetter(ch byte) bool {
 	// we're only supporting ASCII characters
 	return 'a' <= ch && ch <= 'z' || 'A' <= ch &&
@@ -157,8 +191,16 @@ func newToken(tokenType token.TokenType, ch byte) token.Token {
 	return token.Token{Type: tokenType, Literal: string(ch)}
 }
 
+// func (l *Lexer) isAtEnd() bool {
+// 	return l.ch == 0
+// }
+
+func newErrorToken(tokenType token.TokenType, literal string) token.Token {
+	return token.Token{Type: tokenType, Literal: literal}
+}
+
 func (l *Lexer) skipWhitespace() {
-	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+	for l.ch == ' ' || l.ch == '\t' || l.ch == '\r' || l.ch == '\n' {
 		l.readChar()
 	}
 }
