@@ -162,6 +162,7 @@ func (l *Lexer) readIdentifier() string {
 	return l.input[position:l.position]
 }
 
+// for now even a double/float is also treated as an integer - token name can be changed
 func (l *Lexer) readNumber() string {
 	// remember our current position in the input string
 	position := l.position
@@ -169,6 +170,14 @@ func (l *Lexer) readNumber() string {
 	for isDigit(l.ch) {
 		// advance our position in the input string
 		l.readChar()
+	}
+
+	if l.ch == '.' && isDigit(l.peekChar()) {
+		l.readChar()
+		for isDigit(l.ch) {
+			// advance our position in the input string
+			l.readChar()
+		}
 	}
 	// return the substring of the input string from our starting position to our current position
 	return l.input[position:l.position]
