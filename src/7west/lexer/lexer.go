@@ -76,14 +76,22 @@ func (l *Lexer) NextToken() token.Token {
 			tok = newToken(token.BANG, l.ch)
 		}
 	case '/':
-		charAhead := l.peekChar()
-		if charAhead == '/' {
-			// read the next characters //
-			l.readChar()
+		if l.peekChar() == '/' {
+			// read the next character /
 			l.readChar()
 			// if it's a double slash, skip the entire comment
-			l.skipComment()
-			// and return the next token
+			l.skipSlashComment()
+			// and return the next token which is important otherwise the program hangs
+			return l.NextToken()
+		} else if l.peekChar() == '*' {
+			// read the next character *
+			l.readChar()
+			// if it's a slash star, skip the entire comment
+			l.skipBlockComment()
+			// and continue from where we left off in the code and skip */
+			l.readChar()
+			l.readChar()
+			// and return the next token which is important otherwise the program hangs
 			return l.NextToken()
 		}
 
@@ -215,13 +223,25 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-func (l *Lexer) skipComment() {
+func (l *Lexer) skipSlashComment() {
 	// keep reading until we encounter a newline
 	for l.ch != '\n' {
 		// advance our position in the input string
 		l.readChar()
 	}
 	// increment the line count
+	l.line += 1
+}
+
+func (l *Lexer) skipBlockComment() {
+	// keep reading until we encounter a newline
+	l.readChar()
+	print(l.ch, "\n")
+	for l.ch != '*' && l.peekChar() != '/' {
+		// advance our position in the input string
+		l.readChar()
+	}
+	// increment the line count - TODO: this needs to be edited
 	l.line += 1
 }
 

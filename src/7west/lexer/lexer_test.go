@@ -14,7 +14,7 @@ func TestNextToken(t *testing.T) {
 	};
 	
 	let result = add(five, ten);
-	!-/*5;
+	!-/+5;
 	5 < 10 > 5;
 	
 	if (5 < 10) {
@@ -23,7 +23,13 @@ func TestNextToken(t *testing.T) {
 		return false;
 	}
 
-	// a sample comment with random text
+	// a sample slash comment with random text
+
+	/* 
+		a sample block comment with 
+		random text
+		over multiple lines 
+	*/
 	
 	10 == 10;
 	10 != 9;
@@ -73,7 +79,7 @@ func TestNextToken(t *testing.T) {
 		{token.BANG, "!"},
 		{token.MINUS, "-"},
 		{token.SLASH, "/"},
-		{token.ASTERISK, "*"},
+		{token.PLUS, "+"},
 		{token.INT, "5"},
 		{token.SEMICOLON, ";"},
 		{token.INT, "5"},
