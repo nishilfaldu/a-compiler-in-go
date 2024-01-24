@@ -22,6 +22,8 @@ func TestNextToken(t *testing.T) {
 	} else {
 		return false;
 	}
+
+	// a sample comment with random text
 	
 	10 == 10;
 	10 != 9;

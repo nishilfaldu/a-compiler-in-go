@@ -76,6 +76,17 @@ func (l *Lexer) NextToken() token.Token {
 			tok = newToken(token.BANG, l.ch)
 		}
 	case '/':
+		charAhead := l.peekChar()
+		if charAhead == '/' {
+			// read the next characters //
+			l.readChar()
+			l.readChar()
+			// if it's a double slash, skip the entire comment
+			l.skipComment()
+			// and return the next token
+			return l.NextToken()
+		}
+
 		tok = newToken(token.SLASH, l.ch)
 	case '*':
 		tok = newToken(token.ASTERISK, l.ch)
@@ -91,7 +102,6 @@ func (l *Lexer) NextToken() token.Token {
 		// read the next character to skip the first "
 		l.readChar()
 		str := l.readString()
-		print(str, " .  str\n")
 		// if it's a double quote, read the entire string
 		if str == "" {
 			// if we've reached the end of the input, return an error
@@ -203,6 +213,16 @@ func (l *Lexer) skipWhitespace() {
 	for l.ch == ' ' || l.ch == '\t' || l.ch == '\r' || l.ch == '\n' {
 		l.readChar()
 	}
+}
+
+func (l *Lexer) skipComment() {
+	// keep reading until we encounter a newline
+	for l.ch != '\n' {
+		// advance our position in the input string
+		l.readChar()
+	}
+	// increment the line count
+	l.line += 1
 }
 
 func (l *Lexer) peekChar() byte {
