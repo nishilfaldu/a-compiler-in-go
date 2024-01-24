@@ -34,6 +34,9 @@ func (l *Lexer) readChar() {
 func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
 
+	// skip any whitespace
+	l.skipWhitespace()
+
 	switch l.ch {
 	case '=':
 		tok = newToken(token.ASSIGN, l.ch)
@@ -61,11 +64,18 @@ func (l *Lexer) NextToken() token.Token {
 			// if it's a letter, read in the entire identifier
 			tok.Literal = l.readIdentifier()
 			// and check whether it's a keyword
-			// tok.Type = token.LookupIdent(tok.Literal)
+			tok.Type = token.LookupIdent(tok.Literal)
 			// and return early
+			// The early exit here, our return tok statement, is necessary because when calling readIdenti- fier(),
+			// we call readChar() repeatedly and advance our readPosition and position fields past the last
+			// character of the current identifier.
 			return tok
+		} else if isDigit(l.ch) {
+			tok.Type = token.INT
+			tok.Literal = l.readNumber()
 		} else {
 			// if it's not a letter, it could be an integer literal
+
 			// if it's not a digit, it's an illegal character
 			tok = newToken(token.ILLEGAL, l.ch)
 		}
@@ -86,12 +96,35 @@ func (l *Lexer) readIdentifier() string {
 	return l.input[position:l.position]
 }
 
+func (l *Lexer) readNumber() string {
+	// remember our current position in the input string
+	position := l.position
+	// keep reading until we encounter a non-digit-character
+	for isDigit(l.ch) {
+		// advance our position in the input string
+		l.readChar()
+	}
+	// return the substring of the input string from our starting position to our current position
+	return l.input[position:l.position]
+}
+
 func isLetter(ch byte) bool {
 	// we're only supporting ASCII characters
 	return 'a' <= ch && ch <= 'z' || 'A' <= ch &&
 		ch <= 'Z' || ch == '_'
 }
 
+func isDigit(ch byte) bool {
+	// we're only supporting ASCII characters
+	return '0' <= ch && ch <= '9'
+}
+
 func newToken(tokenType token.TokenType, ch byte) token.Token {
 	return token.Token{Type: tokenType, Literal: string(ch)}
+}
+
+func (l *Lexer) skipWhitespace() {
+	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+		l.readChar()
+	}
 }
