@@ -15,12 +15,11 @@ const (
 	ERROR   = "ERROR"
 
 	// Identifiers + literals
-	IDENT  = "IDENT" // add, foobar, x, y, ...
-	INT    = "INT"   // 1343456
-	STRING = "STRING"
+	IDENT = "IDENT" // add, foobar, x, y, ...
 
 	// Operators
-	ASSIGN   = "="
+	// ASSIGN   = "="
+	ASSIGN   = ":="
 	PLUS     = "+"
 	MINUS    = "-"
 	BANG     = "!"
@@ -30,36 +29,71 @@ const (
 	LT = "<"
 	GT = ">"
 
-	EQ     = "=="
-	NOT_EQ = "!="
+	EQ         = "=="
+	NOT_EQ     = "!="
+	LESS_EQ    = "<="
+	GREATER_EQ = ">="
 
 	// Delimiters
 	COMMA     = ","
 	SEMICOLON = ";"
+	COLON     = ":"
 
-	LPAREN = "("
-	RPAREN = ")"
-	LBRACE = "{"
-	RBRACE = "}"
+	LPAREN   = "("
+	RPAREN   = ")"
+	LBRACE   = "{"
+	RBRACE   = "}"
+	LSQBRACE = "["
+	RSQBRACE = "]"
+
+	// loops
+	FOR = "FOR"
 
 	// Keywords
-	FUNCTION = "FUNCTION"
-	LET      = "LET"
-	TRUE     = "TRUE"
-	FALSE    = "FALSE"
-	IF       = "IF"
-	ELSE     = "ELSE"
-	RETURN   = "RETURN"
+	// FUNCTION = "FUNCTION"
+	LET   = "LET"
+	TRUE  = "TRUE"
+	FALSE = "FALSE"
+	// ELSE      = "ELSE"
+	RETURN    = "RETURN"
+	GLOBAL    = "GLOBAL"
+	PROGRAM   = "PROGRAM"
+	IS        = "IS"
+	VARIABLE  = "VARIABLE"
+	IF        = "IF"
+	THEN      = "THEN"
+	PROCEDURE = "PROCEDURE"
+	BEGIN     = "BEGIN"
+	END       = "END"
+
+	// Data types
+	INTEGER = "INTEGER"
+	FLOAT   = "FLOAT"
+	STRING  = "STRING"
+	BOOLEAN = "BOOLEAN"
 )
 
 var keywords = map[string]TokenType{
-	"fn":     FUNCTION,
-	"let":    LET,
-	"true":   TRUE,
-	"false":  FALSE,
-	"if":     IF,
-	"else":   ELSE,
-	"return": RETURN,
+	// "fn":       FUNCTION,
+	// "else":      ELSE,
+	"let":       LET,
+	"true":      TRUE,
+	"false":     FALSE,
+	"if":        IF,
+	"then":      THEN,
+	"return":    RETURN,
+	"global":    GLOBAL,
+	"program":   PROGRAM,
+	"is":        IS,
+	"variable":  VARIABLE,
+	"procedure": PROCEDURE,
+	"begin":     BEGIN,
+	"end":       END,
+	"bool":      BOOLEAN,
+	"integer":   INTEGER,
+	"float":     FLOAT,
+	"string":    STRING,
+	"for":       FOR,
 }
 
 func LookupIdent(ident string) TokenType {

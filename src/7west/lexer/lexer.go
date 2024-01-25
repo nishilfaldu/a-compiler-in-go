@@ -2,6 +2,7 @@ package lexer
 
 import (
 	"a-compiler-in-go/src/7west/src/7west/token"
+	"strings"
 )
 
 type Lexer struct {
@@ -13,7 +14,7 @@ type Lexer struct {
 }
 
 func New(input string) *Lexer {
-	l := &Lexer{input: input, line: 1}
+	l := &Lexer{input: strings.ToLower(input), line: 1}
 	l.readChar()
 	return l
 }
@@ -53,10 +54,25 @@ func (l *Lexer) NextToken() token.Token {
 		}
 	case ';':
 		tok = newToken(token.SEMICOLON, l.ch)
+	case ':':
+		if l.peekChar() == '=' {
+			ch := l.ch
+			// read the next character
+			l.readChar()
+			// and set the token to the equality operator
+			// cannot use newToken here as it requires single byte for the literal argument
+			tok = token.Token{Type: token.ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(token.COLON, l.ch)
+		}
 	case '(':
 		tok = newToken(token.LPAREN, l.ch)
 	case ')':
 		tok = newToken(token.RPAREN, l.ch)
+	case '[':
+		tok = newToken(token.LSQBRACE, l.ch)
+	case ']':
+		tok = newToken(token.RSQBRACE, l.ch)
 	case ',':
 		tok = newToken(token.COMMA, l.ch)
 	case '+':
@@ -99,9 +115,27 @@ func (l *Lexer) NextToken() token.Token {
 	case '*':
 		tok = newToken(token.ASTERISK, l.ch)
 	case '<':
-		tok = newToken(token.LT, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			// read the next character
+			l.readChar()
+			// and set the token to the equality operator
+			// cannot use newToken here as it requires single byte for the literal argument
+			tok = token.Token{Type: token.LESS_EQ, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(token.LT, l.ch)
+		}
 	case '>':
-		tok = newToken(token.GT, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			// read the next character
+			l.readChar()
+			// and set the token to the equality operator
+			// cannot use newToken here as it requires single byte for the literal argument
+			tok = token.Token{Type: token.GREATER_EQ, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(token.GT, l.ch)
+		}
 	case '{':
 		tok = newToken(token.LBRACE, l.ch)
 	case '}':
@@ -135,8 +169,8 @@ func (l *Lexer) NextToken() token.Token {
 			// character of the current identifier.
 			return tok
 		} else if isDigit(l.ch) {
-			tok.Type = token.INT
-			tok.Literal = l.readNumber()
+			// tok.Type = token.INTEGER
+			tok.Literal, tok.Type = l.readNumber()
 			// and return early
 			return tok
 		} else {
@@ -162,14 +196,16 @@ func (l *Lexer) readIdentifier() string {
 	return l.input[position:l.position]
 }
 
-// for now even a double/float is also treated as an integer - token name can be changed
-func (l *Lexer) readNumber() string {
+// TODO: for now even a double/float is also treated as an integer - token name can be changed
+func (l *Lexer) readNumber() (string, token.TokenType) {
 	// remember our current position in the input string
 	position := l.position
+	var tokType token.TokenType
 	// keep reading until we encounter a non-digit-character
 	for isDigit(l.ch) {
 		// advance our position in the input string
 		l.readChar()
+		tokType = token.INTEGER
 	}
 
 	if l.ch == '.' && isDigit(l.peekChar()) {
@@ -177,10 +213,11 @@ func (l *Lexer) readNumber() string {
 		for isDigit(l.ch) {
 			// advance our position in the input string
 			l.readChar()
+			tokType = token.FLOAT
 		}
 	}
 	// return the substring of the input string from our starting position to our current position
-	return l.input[position:l.position]
+	return l.input[position:l.position], tokType
 }
 
 func (l *Lexer) readString() string {
