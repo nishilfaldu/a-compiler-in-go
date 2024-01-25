@@ -39,8 +39,9 @@ func TestNextToken(t *testing.T) {
 
 	input := `
 	/* ok so it's also time to test
-	/* nested comments; can you do it??
-	*/*/
+	/* nested comments; /*can you do it??*/
+	*/
+	*/
 	PROGRAM grant IS
     global variable JAKE : integer;
 	global variable ryan : integer[3];

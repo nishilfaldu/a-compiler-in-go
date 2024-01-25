@@ -286,11 +286,27 @@ func (l *Lexer) skipSlashComment() {
 func (l *Lexer) skipBlockComment() {
 	// keep reading until we encounter a newline
 	l.readChar()
-	print(l.ch, "\n")
-	for l.ch != '*' && l.peekChar() != '/' {
-		// advance our position in the input string
-		l.readChar()
+
+	nestingLevel := 1 // Track the nesting level of block comments
+	for nestingLevel > 0 && l.ch != 0 {
+		if l.ch == '/' && l.peekChar() == '*' {
+			// we've encountered a nested block comment
+			nestingLevel += 1
+			// skip the slash and the star
+			l.readChar()
+			l.readChar()
+		} else if l.ch == '*' && l.peekChar() == '/' {
+			// we've encountered the end of a nested block comment
+			nestingLevel -= 1
+			// skip the star and the slash
+			l.readChar()
+			l.readChar()
+		} else {
+			// advance our position in the input string
+			l.readChar()
+		}
 	}
+
 	// increment the line count - TODO: this needs to be edited
 	l.line += 1
 }
