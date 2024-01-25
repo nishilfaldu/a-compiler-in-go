@@ -79,6 +79,10 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.PLUS, l.ch)
 	case '-':
 		tok = newToken(token.MINUS, l.ch)
+	case '&':
+		tok = newToken(token.AND, l.ch)
+	case '|':
+		tok = newToken(token.OR, l.ch)
 	case '!':
 		// if it's an exclamation point, check whether it's part of the "not equals" operator
 		if l.peekChar() == '=' {

@@ -34,6 +34,9 @@ const (
 	LESS_EQ    = "<="
 	GREATER_EQ = ">="
 
+	AND = "&"
+	OR  = "|"
+
 	// Delimiters
 	COMMA     = ","
 	SEMICOLON = ";"
@@ -71,6 +74,7 @@ const (
 	FLOAT   = "FLOAT"
 	STRING  = "STRING"
 	BOOLEAN = "BOOLEAN"
+	NOT     = "NOT"
 )
 
 var keywords = map[string]TokenType{
@@ -94,6 +98,7 @@ var keywords = map[string]TokenType{
 	"float":     FLOAT,
 	"string":    STRING,
 	"for":       FOR,
+	"not":       NOT,
 }
 
 func LookupIdent(ident string) TokenType {

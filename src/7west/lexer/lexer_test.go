@@ -2,7 +2,6 @@ package lexer
 
 import (
 	"a-compiler-in-go/src/7west/src/7west/token"
-	"strings"
 	"testing"
 )
 
@@ -38,7 +37,10 @@ func TestNextToken(t *testing.T) {
 	// let s = "hello";
 	// `
 
-	input := strings.ToLower(`
+	input := `
+	/* ok so it's also time to test
+	/* nested comments; can you do it??
+	*/*/
 	PROGRAM grant IS
     global variable JAKE : integer;
 	global variable ryan : integer[3];
@@ -74,7 +76,7 @@ func TestNextToken(t *testing.T) {
 		tmp := if_proc();
 		tmp := for_proc();
 	end program
-	`)
+	`
 	// tests := []struct {
 	// 	expectedType    token.TokenType
 	// 	expectedLiteral string
