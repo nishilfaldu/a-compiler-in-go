@@ -68,6 +68,7 @@ const (
 	PROCEDURE = "PROCEDURE"
 	BEGIN     = "BEGIN"
 	END       = "END"
+	ELSE      = "ELSE"
 
 	// Data types
 	INTEGER = "INTEGER"
@@ -79,8 +80,8 @@ const (
 
 var keywords = map[string]TokenType{
 	// "fn":       FUNCTION,
-	// "else":      ELSE,
-	"let":       LET,
+	"else": ELSE,
+	// "let":       LET,
 	"true":      TRUE,
 	"false":     FALSE,
 	"if":        IF,
