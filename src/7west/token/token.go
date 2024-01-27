@@ -15,7 +15,7 @@ const (
 	ERROR   = "ERROR"
 
 	// Identifiers + literals
-	IDENT = "IDENT" // add, foobar, x, y, ...
+	IDENTIFIER = "IDENTIFIER" // add, foobar, x, y, ...
 
 	// Operators
 	// ASSIGN   = "="
@@ -111,5 +111,5 @@ func LookupIdent(ident string) TokenType {
 	// if ok {
 	// 	return tok
 	// }
-	return IDENT
+	return IDENTIFIER
 }
