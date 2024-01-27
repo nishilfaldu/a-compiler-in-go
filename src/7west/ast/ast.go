@@ -32,6 +32,7 @@ func (p *Program) TokenLiteral() string {
 	}
 }
 
+// <variable_declaration> ::= variable <identifier> = <expression> --- 1
 type VariableStatement struct {
 	Token token.Token // the token.VARIABLE token
 	Name  *Identifier
@@ -48,3 +49,12 @@ type Identifier struct {
 
 func (i *Identifier) expressionNode()      {}
 func (i *Identifier) TokenLiteral() string { return i.Token.Literal }
+
+// <return_statement> ::= return <expression> --- 2
+type ReturnStatement struct {
+	Token       token.Token // the token.RETURN token
+	ReturnValue Expression
+}
+
+func (rs *ReturnStatement) statementNode()       {}
+func (rs *ReturnStatement) TokenLiteral() string { return rs.Token.Literal }
