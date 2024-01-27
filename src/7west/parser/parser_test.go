@@ -3,6 +3,7 @@ package parser
 import (
 	"a-compiler-in-go/src/7west/src/7west/ast"
 	"a-compiler-in-go/src/7west/src/7west/lexer"
+	"a-compiler-in-go/src/7west/src/7west/token"
 	"testing"
 )
 
@@ -98,6 +99,59 @@ func TestReturnStatements(t *testing.T) {
 		if returnStmt.TokenLiteral() != "return" {
 			t.Errorf("returnStmt.TokenLiteral not 'return', got %q", returnStmt.TokenLiteral())
 		}
+	}
+}
+
+// In this test, we construct the AST by hand
+// For demonstration purposes, this test shows us how we can add another easily
+// readable layer of tests for our parser by just comparing the parser output with strings.
+func TestString(t *testing.T) {
+	program := &ast.Program{
+		Statements: []ast.Statement{
+			&ast.VariableStatement{
+				Token: token.Token{Type: token.VARIABLE, Literal: "variable"},
+				Name: &ast.Identifier{
+					Token: token.Token{Type: token.IDENTIFIER, Literal: "myVar"},
+					Value: "myVar",
+				},
+				Value: &ast.Identifier{
+					Token: token.Token{Type: token.IDENTIFIER, Literal: "anotherVar"},
+					Value: "anotherVar",
+				},
+			},
+		},
+	}
+
+	if program.String() != "variable myVar = anotherVar;" {
+		t.Errorf("program.String() wrong. got=%q", program.String())
+	}
+}
+
+func TestIdentifierExpression(t *testing.T) {
+	input := "foobar;"
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program has not enough statements. got=%d", len(program.Statements))
+	}
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+	}
+
+	ident, ok := stmt.Expression.(*ast.Identifier)
+	if !ok {
+		t.Fatalf("exp not *ast.Identifier. got=%T", stmt.Expression)
+	}
+	if ident.Value != "foobar" {
+		t.Errorf("ident.Value not %s. got=%s", "foobar", ident.Value)
+	}
+	if ident.TokenLiteral() != "foobar" {
+		t.Errorf("ident.TokenLiteral not %s. got=%s", "foobar", ident.TokenLiteral())
 	}
 }
 

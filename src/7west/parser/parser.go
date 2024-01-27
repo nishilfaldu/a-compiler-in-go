@@ -1,3 +1,5 @@
+// Technique: We already know the drill: we build our AST node and then try to
+// fill its field by calling other parsing functions.
 package parser
 
 import (
@@ -13,7 +15,31 @@ type Parser struct {
 	currentToken token.Token
 	peekToken    token.Token
 	errors       []string
+
+	prefixParseFns map[token.TokenType]prefixParseFn
+	infixParseFns  map[token.TokenType]infixParseFn
 }
+
+// Here we use iota to give the following constants incrementing numbers as values.
+// The blank identifier _ takes the zero value and the following constants get
+// assigned the values 1 to 7.
+const (
+	_ int = iota
+	// LOWEST is the lowest precedence
+	LOWEST
+	// EQUALS is the precedence of the equality operator
+	EQUALS // ==
+	// LESSGREATER is the precedence of the comparison operators
+	LESSGREATER // > or <
+	// SUM is the precedence of the sum operator
+	SUM // +
+	// PRODUCT is the precedence of the product operator
+	PRODUCT // *
+	// PREFIX is the precedence of prefix operators
+	PREFIX // -X or !X
+	// CALL is the precedence of the call operator
+	CALL // myFunction(X)
+)
 
 // New creates a new Parser
 func New(l *lexer.Lexer) *Parser {
@@ -57,7 +83,7 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.RETURN:
 		return p.parseReturnStatement()
 	default:
-		return nil
+		return p.parseExpressionStatement()
 	}
 }
 
@@ -129,4 +155,45 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	}
 
 	return stmt
+}
+
+type (
+	prefixParseFn func() ast.Expression
+	// This argument is “left side” of the infix operator that’s being parsed
+	infixParseFn func(ast.Expression) ast.Expression
+)
+
+func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
+	p.prefixParseFns[tokenType] = fn
+}
+
+func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
+	p.infixParseFns[tokenType] = fn
+}
+
+func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+	stmt := &ast.ExpressionStatement{Token: p.currentToken}
+
+	stmt.Expression = p.parseExpression(LOWEST)
+
+	// we check for an optional semicolon. Yes, it’s optional.
+	// If the peekToken is a token.SEMICOLON, we advance so it’s the curToken.
+	// If it’s not there, that’s okay too, we don’t add an error to the parser if it’s not there.
+	// That’s because we want expression statements to have optional semicolons
+	// (which makes it easier to type something like 5 + 5 into the REPL later on).
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseExpression(precedence int) ast.Expression {
+	prefix := p.prefixParseFns[p.currentToken.Type]
+	if prefix == nil {
+		return nil
+	}
+	leftExp := prefix()
+
+	return leftExp
 }
