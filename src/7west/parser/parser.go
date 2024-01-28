@@ -7,6 +7,7 @@ import (
 	"a-compiler-in-go/src/7west/src/7west/lexer"
 	"a-compiler-in-go/src/7west/src/7west/token"
 	"fmt"
+	"strconv"
 )
 
 // Parser represents a parser
@@ -47,6 +48,12 @@ func New(l *lexer.Lexer) *Parser {
 		l:      l,
 		errors: []string{},
 	}
+
+	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
+	p.registerPrefix(token.IDENTIFIER, p.parseIdentifier)
+	p.registerPrefix(token.INTEGER, p.parseIntegerLiteral)
+	p.registerPrefix(token.BANG, p.parsePrefixExpression)
+	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	// Read two tokens, so currentToken and peekToken are both set
 	p.nextToken()
 	p.nextToken()
@@ -191,9 +198,55 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 func (p *Parser) parseExpression(precedence int) ast.Expression {
 	prefix := p.prefixParseFns[p.currentToken.Type]
 	if prefix == nil {
+		p.noPrefixParseFnError(p.currentToken.Type)
 		return nil
 	}
 	leftExp := prefix()
 
 	return leftExp
+}
+
+// parseIdentifier parses an identifier (which is also an expression)
+// Example: foobar;
+func (p *Parser) parseIdentifier() ast.Expression {
+	return &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
+}
+
+// parseIntegerLiteral parses an integer literal (which is also an expression)
+// Example: 5;
+func (p *Parser) parseIntegerLiteral() ast.Expression {
+	lit := &ast.IntegerLiteral{Token: p.currentToken}
+
+	// we use the strconv.ParseInt function to convert the string literal to an integer value
+	// and store it in the Value field of our IntegerLiteral struct
+	value, err := strconv.ParseInt(p.currentToken.Literal, 0, 64)
+	if err != nil {
+		// if we encounter an error, we add it to the parser’s error list
+		msg := fmt.Sprintf("could not parse %q as integer", p.currentToken.Literal)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+	lit.Value = value
+
+	return lit
+}
+
+func (p *Parser) noPrefixParseFnError(t token.TokenType) {
+	msg := fmt.Sprintf("no prefix parse function for %s found", t)
+	p.errors = append(p.errors, msg)
+}
+
+func (p *Parser) parsePrefixExpression() ast.Expression {
+	expression := &ast.PrefixExpression{
+		Token:    p.currentToken,
+		Operator: p.currentToken.Literal,
+	}
+	// But in order to correctly parse a prefix expres- sion like -5 more than one
+	// token has to be “consumed”. So after using p.curToken to build a
+	// *ast.PrefixExpression node, the method advances the tokens and calls parseExpression
+	// again. This time with the precedence of prefix operators as argument.
+	p.nextToken()
+	expression.Right = p.parseExpression(PREFIX)
+
+	return expression
 }
