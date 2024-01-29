@@ -200,6 +200,8 @@ func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 }
 
 func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+	// defer untrace(trace("parseExpressionStatement"))
+
 	stmt := &ast.ExpressionStatement{Token: p.currentToken}
 
 	stmt.Expression = p.parseExpression(LOWEST)
@@ -217,6 +219,8 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 }
 
 func (p *Parser) parseExpression(precedence int) ast.Expression {
+	// defer untrace(trace("parseExpression"))
+
 	prefix := p.prefixParseFns[p.currentToken.Type]
 	if prefix == nil {
 		p.noPrefixParseFnError(p.currentToken.Type)
@@ -247,6 +251,8 @@ func (p *Parser) parseIdentifier() ast.Expression {
 // parseIntegerLiteral parses an integer literal (which is also an expression)
 // Example: 5;
 func (p *Parser) parseIntegerLiteral() ast.Expression {
+	// defer untrace(trace("parseIntegerLiteral"))
+
 	lit := &ast.IntegerLiteral{Token: p.currentToken}
 
 	// we use the strconv.ParseInt function to convert the string literal to an integer value
@@ -270,6 +276,8 @@ func (p *Parser) noPrefixParseFnError(t token.TokenType) {
 
 // // parsePrefixExpression parses an infix expression -5; !foobar; 5 + -10;
 func (p *Parser) parsePrefixExpression() ast.Expression {
+	// defer untrace(trace("parsePrefixExpression"))
+
 	expression := &ast.PrefixExpression{
 		Token:    p.currentToken,
 		Operator: p.currentToken.Literal,
@@ -301,6 +309,8 @@ func (p *Parser) currentPrecendence() int {
 }
 
 func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
+	// defer untrace(trace("parseInfixExpression"))
+
 	expression := &ast.InfixExpression{
 		Token:    p.currentToken,
 		Operator: p.currentToken.Literal,
