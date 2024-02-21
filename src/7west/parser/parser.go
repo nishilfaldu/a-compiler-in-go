@@ -99,6 +99,23 @@ func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}
 	program.Statements = []ast.Statement{}
 
+	// Parse the initial program structure
+	// if p.currentToken.Type != token.PROGRAM {
+	// 	return nil
+	// }
+	// p.nextToken()
+
+	// if p.currentToken.Type != token.IDENTIFIER {
+	// 	return nil
+	// }
+	// p.nextToken()
+
+	// // Ensure that the next token is "is"
+	// if p.currentToken.Type != token.IS {
+	// 	return nil
+	// }
+	// p.nextToken()
+
 	for p.currentToken.Type != token.EOF {
 		stmt := p.parseStatement()
 		if stmt != nil {
