@@ -51,7 +51,7 @@ func (ph *ProgramHeader) String() string {
 	var out bytes.Buffer
 
 	out.WriteString(ph.TokenLiteral() + " ")
-	out.WriteString(ph.Identifier.String())
+	out.WriteString(ph.Identifier.String() + " is ")
 
 	return out.String()
 }
@@ -112,7 +112,14 @@ type GlobalVariableStatement struct {
 
 func (gvs *GlobalVariableStatement) statementNode()       {}
 func (gvs *GlobalVariableStatement) TokenLiteral() string { return gvs.Token.Literal }
-func (gvs *GlobalVariableStatement) String() string       { return gvs.Variable.String() }
+func (gvs *GlobalVariableStatement) String() string {
+	var out bytes.Buffer
+
+	out.WriteString(gvs.TokenLiteral() + " ")
+	out.WriteString(gvs.Variable.String())
+
+	return out.String()
+}
 
 type Identifier struct {
 	Token token.Token // the token.IDENT token

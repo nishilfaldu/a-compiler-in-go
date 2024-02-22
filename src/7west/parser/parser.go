@@ -88,14 +88,18 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.LSQBRACE, p.parseIndexExpression)
 	// Read two tokens, so currentToken and peekToken are both set
 	// p.nextToken()
-	// p.nextToken()
+	p.nextToken()
 	return p
 }
 
 // nextToken advances the tokens for the parser
 func (p *Parser) nextToken() {
+	print(p.currentToken.Literal, " . ", p.peekToken.Literal, "\n")
+
 	p.currentToken = p.peekToken
 	p.peekToken = p.l.NextToken()
+	print(p.currentToken.Literal, " . ", p.peekToken.Literal, "\n")
+
 }
 
 func (p *Parser) ParseProgram() *ast.Program {
@@ -113,15 +117,12 @@ func (p *Parser) ParseProgram() *ast.Program {
 // parseProgramHeader parses the initial program structure: PROGRAM ID IS ...
 func (p *Parser) parseProgramHeader() *ast.ProgramHeader {
 	programHeader := &ast.ProgramHeader{}
-
 	// Ensure that the next token is "program"
 	if !p.expectPeek(token.PROGRAM) {
+		print("bla bla\n")
 		return nil
 	}
 	programHeader.Token = p.currentToken
-
-	// parse the identifier now
-	p.nextToken()
 
 	// Ensure that the next token is an identifier
 	if !p.expectPeek(token.IDENTIFIER) {
@@ -133,6 +134,7 @@ func (p *Parser) parseProgramHeader() *ast.ProgramHeader {
 	if !p.expectPeek(token.IS) {
 		return nil
 	}
+	p.nextToken()
 
 	return programHeader
 }
