@@ -87,8 +87,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
 	p.registerInfix(token.LSQBRACE, p.parseIndexExpression)
 	// Read two tokens, so currentToken and peekToken are both set
-	p.nextToken()
-	p.nextToken()
+	// p.nextToken()
+	// p.nextToken()
 	return p
 }
 
@@ -98,42 +98,67 @@ func (p *Parser) nextToken() {
 	p.peekToken = p.l.NextToken()
 }
 
-// ParseProgram parses a program
 func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}
-	program.Statements = []ast.Statement{}
 
-	// Parse the initial program structure
-	// if p.currentToken.Type != token.PROGRAM {
-	// 	return nil
-	// }
-	// p.nextToken()
+	// Parse the program header
+	program.Header = p.parseProgramHeader()
 
-	// if p.currentToken.Type != token.IDENTIFIER {
-	// 	return nil
-	// }
-	// p.nextToken()
+	// Parse the program body
+	program.Body = p.parseProgramBody()
 
-	// // Ensure that the next token is "is"
-	// if p.currentToken.Type != token.IS {
-	// 	return nil
-	// }
-	// p.nextToken()
+	return program
+}
+
+// parseProgramHeader parses the initial program structure: PROGRAM ID IS ...
+func (p *Parser) parseProgramHeader() *ast.ProgramHeader {
+	programHeader := &ast.ProgramHeader{}
+
+	// Ensure that the next token is "program"
+	if !p.expectPeek(token.PROGRAM) {
+		return nil
+	}
+	programHeader.Token = p.currentToken
+
+	// parse the identifier now
+	p.nextToken()
+
+	// Ensure that the next token is an identifier
+	if !p.expectPeek(token.IDENTIFIER) {
+		return nil
+	}
+	programHeader.Identifier = &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
+
+	// Ensure that the next token is "is"
+	if !p.expectPeek(token.IS) {
+		return nil
+	}
+
+	return programHeader
+}
+
+// ParseProgramBody parses a program body
+func (p *Parser) parseProgramBody() *ast.ProgramBody {
+	programBody := &ast.ProgramBody{}
+	programBody.Statements = []ast.Statement{}
 
 	for p.currentToken.Type != token.EOF {
+
 		stmt := p.parseStatement()
 		if stmt != nil {
-			program.Statements = append(program.Statements, stmt)
+			programBody.Statements = append(programBody.Statements, stmt)
 		}
 		p.nextToken()
 	}
 
-	return program
+	return programBody
 }
 
 // parseStatement parses a statement
 func (p *Parser) parseStatement() ast.Statement {
 	switch p.currentToken.Type {
+	case token.GLOBAL:
+		return p.parseGlobalVariableStatement()
 	case token.VARIABLE:
 		return p.parseVariableStatement()
 	case token.RETURN:
@@ -141,6 +166,19 @@ func (p *Parser) parseStatement() ast.Statement {
 	default:
 		return p.parseExpressionStatement()
 	}
+}
+
+// parseGlobalVariableStatement parses a global variable statement
+func (p *Parser) parseGlobalVariableStatement() *ast.GlobalVariableStatement {
+	stmt := &ast.GlobalVariableStatement{Token: p.currentToken}
+
+	if !p.expectPeek(token.VARIABLE) {
+		return nil
+	}
+	stmt.Variable = p.parseVariableStatement()
+
+	return stmt
+
 }
 
 // parseVariableStatement parses a variable statement

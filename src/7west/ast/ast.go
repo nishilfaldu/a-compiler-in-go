@@ -23,11 +23,45 @@ type Expression interface {
 
 // Program is the root node of every AST our parser produces
 type Program struct {
+	Header *ProgramHeader
+	Body   *ProgramBody
+}
+
+// String returns a string representation of the Program node and all its children
+func (p *Program) String() string {
+	var out bytes.Buffer
+
+	if p.Header != nil {
+		out.WriteString(p.Header.String())
+		out.WriteString("\n")
+	}
+
+	out.WriteString(p.Body.String())
+
+	return out.String()
+}
+
+type ProgramHeader struct {
+	Token      token.Token // the PROGRAM token
+	Identifier *Identifier
+}
+
+func (ph *ProgramHeader) TokenLiteral() string { return ph.Token.Literal }
+func (ph *ProgramHeader) String() string {
+	var out bytes.Buffer
+
+	out.WriteString(ph.TokenLiteral() + " ")
+	out.WriteString(ph.Identifier.String())
+
+	return out.String()
+}
+
+type ProgramBody struct {
 	Statements []Statement
 }
 
 // TokenLiteral returns the literal value of the token associated with this node
-func (p *Program) TokenLiteral() string {
+func (p *ProgramBody) TokenLiteral() string {
 	if len(p.Statements) > 0 {
 		return p.Statements[0].TokenLiteral()
 	} else {
@@ -36,7 +70,7 @@ func (p *Program) TokenLiteral() string {
 }
 
 // String returns a string representation of the Program node and all its children
-func (p *Program) String() string {
+func (p *ProgramBody) String() string {
 	var out bytes.Buffer
 
 	for _, s := range p.Statements {
@@ -70,6 +104,15 @@ func (vs *VariableStatement) String() string {
 
 	return out.String()
 }
+
+type GlobalVariableStatement struct {
+	Token    token.Token // the token.GLOBAL token
+	Variable *VariableStatement
+}
+
+func (gvs *GlobalVariableStatement) statementNode()       {}
+func (gvs *GlobalVariableStatement) TokenLiteral() string { return gvs.Token.Literal }
+func (gvs *GlobalVariableStatement) String() string       { return gvs.Variable.String() }
 
 type Identifier struct {
 	Token token.Token // the token.IDENT token
