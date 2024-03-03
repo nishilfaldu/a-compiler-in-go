@@ -16,6 +16,11 @@ type Statement interface {
 	statementNode()
 }
 
+type Declaration interface {
+	Node
+	declarationNode()
+}
+
 type Expression interface {
 	Node
 	expressionNode()
@@ -57,7 +62,8 @@ func (ph *ProgramHeader) String() string {
 }
 
 type ProgramBody struct {
-	Statements []Statement
+	Declarations []Declaration
+	Statements   []Statement
 }
 
 // TokenLiteral returns the literal value of the token associated with this node
@@ -73,9 +79,32 @@ func (p *ProgramBody) TokenLiteral() string {
 func (p *ProgramBody) String() string {
 	var out bytes.Buffer
 
+	for _, d := range p.Declarations {
+		out.WriteString(d.String())
+	}
 	for _, s := range p.Statements {
 		out.WriteString(s.String())
 	}
+
+	return out.String()
+}
+
+type VariableDeclaration struct {
+	Token token.Token // the token.VARIABLE token
+	Name  *Identifier
+	Type  token.Token // the token.INTEGER | token.BOOLEAN | token.STRING | token.FLOAT token
+}
+
+func (vd *VariableDeclaration) declarationNode()     {}
+func (vd *VariableDeclaration) TokenLiteral() string { return vd.Token.Literal }
+func (vd *VariableDeclaration) String() string {
+	var out bytes.Buffer
+
+	out.WriteString(vd.TokenLiteral() + " ")
+	out.WriteString(vd.Name.String() + " ")
+	out.WriteString(": ")
+	out.WriteString(vd.Type.Literal)
+	out.WriteString(";")
 
 	return out.String()
 }
@@ -105,21 +134,37 @@ func (vs *VariableStatement) String() string {
 	return out.String()
 }
 
-type GlobalVariableStatement struct {
-	Token    token.Token // the token.GLOBAL token
-	Variable *VariableStatement
+type GlobalVariableDeclaration struct {
+	Token               token.Token // the token.GLOBAL token
+	VariableDeclaration *VariableDeclaration
 }
 
-func (gvs *GlobalVariableStatement) statementNode()       {}
-func (gvs *GlobalVariableStatement) TokenLiteral() string { return gvs.Token.Literal }
-func (gvs *GlobalVariableStatement) String() string {
+func (gvd *GlobalVariableDeclaration) declarationNode()     {}
+func (gvd *GlobalVariableDeclaration) TokenLiteral() string { return gvd.Token.Literal }
+func (gvd *GlobalVariableDeclaration) String() string {
 	var out bytes.Buffer
 
-	out.WriteString(gvs.TokenLiteral() + " ")
-	out.WriteString(gvs.Variable.String())
+	out.WriteString(gvd.TokenLiteral() + " ")
+	out.WriteString(gvd.VariableDeclaration.String())
 
 	return out.String()
 }
+
+// type GlobalVariableStatement struct {
+// 	Token    token.Token // the token.GLOBAL token
+// 	Variable *VariableStatement
+// }
+
+// func (gvs *GlobalVariableStatement) statementNode()       {}
+// func (gvs *GlobalVariableStatement) TokenLiteral() string { return gvs.Token.Literal }
+// func (gvs *GlobalVariableStatement) String() string {
+// 	var out bytes.Buffer
+
+// 	out.WriteString(gvs.TokenLiteral() + " ")
+// 	out.WriteString(gvs.Variable.String())
+
+// 	return out.String()
+// }
 
 type Identifier struct {
 	Token token.Token // the token.IDENT token

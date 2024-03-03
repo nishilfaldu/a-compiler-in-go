@@ -71,10 +71,10 @@ const (
 	ELSE      = "ELSE"
 
 	// Data types
-	INTEGER = "INTEGER"
-	FLOAT   = "FLOAT"
-	STRING  = "STRING"
-	BOOLEAN = "BOOLEAN"
+	INTEGER = "integer"
+	FLOAT   = "float"
+	STRING  = "string"
+	BOOLEAN = "bool"
 	NOT     = "NOT"
 )
 

@@ -63,29 +63,29 @@ func New(l *lexer.Lexer) *Parser {
 		errors: []string{},
 	}
 
-	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
-	p.registerPrefix(token.IDENTIFIER, p.parseIdentifier)
-	p.registerPrefix(token.INTEGER, p.parseIntegerLiteral)
-	p.registerPrefix(token.BANG, p.parsePrefixExpression)
-	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
-	p.registerPrefix(token.TRUE, p.parseBoolean)
-	p.registerPrefix(token.FALSE, p.parseBoolean)
-	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
-	p.registerPrefix(token.IF, p.parseIfExpression)
-	p.registerPrefix(token.PROCEDURE, p.parseFunctionLiteral)
-	p.registerPrefix(token.LSQBRACE, p.parseArrayLiteral)
+	// p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
+	// p.registerPrefix(token.IDENTIFIER, p.parseIdentifier)
+	// p.registerPrefix(token.INTEGER, p.parseIntegerLiteral)
+	// p.registerPrefix(token.BANG, p.parsePrefixExpression)
+	// p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+	// p.registerPrefix(token.TRUE, p.parseBoolean)
+	// p.registerPrefix(token.FALSE, p.parseBoolean)
+	// p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
+	// p.registerPrefix(token.IF, p.parseIfExpression)
+	// p.registerPrefix(token.PROCEDURE, p.parseFunctionLiteral)
+	// p.registerPrefix(token.LSQBRACE, p.parseArrayLiteral)
 
-	p.infixParseFns = make(map[token.TokenType]infixParseFn)
-	p.registerInfix(token.PLUS, p.parseInfixExpression)
-	p.registerInfix(token.MINUS, p.parseInfixExpression)
-	p.registerInfix(token.SLASH, p.parseInfixExpression)
-	p.registerInfix(token.ASTERISK, p.parseInfixExpression)
-	p.registerInfix(token.EQ, p.parseInfixExpression)
-	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
-	p.registerInfix(token.LT, p.parseInfixExpression)
-	p.registerInfix(token.GT, p.parseInfixExpression)
-	p.registerInfix(token.LPAREN, p.parseCallExpression)
-	p.registerInfix(token.LSQBRACE, p.parseIndexExpression)
+	// p.infixParseFns = make(map[token.TokenType]infixParseFn)
+	// p.registerInfix(token.PLUS, p.parseInfixExpression)
+	// p.registerInfix(token.MINUS, p.parseInfixExpression)
+	// p.registerInfix(token.SLASH, p.parseInfixExpression)
+	// p.registerInfix(token.ASTERISK, p.parseInfixExpression)
+	// p.registerInfix(token.EQ, p.parseInfixExpression)
+	// p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
+	// p.registerInfix(token.LT, p.parseInfixExpression)
+	// p.registerInfix(token.GT, p.parseInfixExpression)
+	// p.registerInfix(token.LPAREN, p.parseCallExpression)
+	// p.registerInfix(token.LSQBRACE, p.parseIndexExpression)
 	// Read two tokens, so currentToken and peekToken are both set
 	// p.nextToken()
 	p.nextToken()
@@ -94,11 +94,11 @@ func New(l *lexer.Lexer) *Parser {
 
 // nextToken advances the tokens for the parser
 func (p *Parser) nextToken() {
-	print(p.currentToken.Literal, " . ", p.peekToken.Literal, "\n")
+	// print(p.currentToken.Literal, " . ", p.peekToken.Literal, "\n")
 
 	p.currentToken = p.peekToken
 	p.peekToken = p.l.NextToken()
-	print(p.currentToken.Literal, " . ", p.peekToken.Literal, "\n")
+	// print(p.currentToken.Literal, " . ", p.peekToken.Literal, "\n")
 
 }
 
@@ -119,7 +119,7 @@ func (p *Parser) parseProgramHeader() *ast.ProgramHeader {
 	programHeader := &ast.ProgramHeader{}
 	// Ensure that the next token is "program"
 	if !p.expectPeek(token.PROGRAM) {
-		print("bla bla\n")
+		// print("bla bla\n")
 		return nil
 	}
 	programHeader.Token = p.currentToken
@@ -143,9 +143,13 @@ func (p *Parser) parseProgramHeader() *ast.ProgramHeader {
 func (p *Parser) parseProgramBody() *ast.ProgramBody {
 	programBody := &ast.ProgramBody{}
 	programBody.Statements = []ast.Statement{}
+	programBody.Declarations = []ast.Declaration{}
 
 	for p.currentToken.Type != token.EOF {
-
+		decl := p.parseDeclaration()
+		if decl != nil {
+			programBody.Declarations = append(programBody.Declarations, decl)
+		}
 		stmt := p.parseStatement()
 		if stmt != nil {
 			programBody.Statements = append(programBody.Statements, stmt)
@@ -159,28 +163,71 @@ func (p *Parser) parseProgramBody() *ast.ProgramBody {
 // parseStatement parses a statement
 func (p *Parser) parseStatement() ast.Statement {
 	switch p.currentToken.Type {
-	case token.GLOBAL:
-		return p.parseGlobalVariableStatement()
-	case token.VARIABLE:
-		return p.parseVariableStatement()
+	// case token.IDENTIFIER:
+	// 	return p.parseAssignmentStatement()
+	// case token.IF:
+	// 	return p.parseIfStatement()
+	// case token.FOR:
+	// 	return p.parseLoopStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
 	default:
-		return p.parseExpressionStatement()
+		// return p.parseExpressionStatement()
+		return nil
+	}
+}
+
+// parseDeclaration parses a statement
+func (p *Parser) parseDeclaration() ast.Declaration {
+	switch p.currentToken.Type {
+	case token.GLOBAL:
+		return p.parseGlobalVariableDeclaration()
+	case token.VARIABLE:
+		return p.parseVariableDeclaration()
+	// case token.PROCEDURE:
+	// 	return p.parseProcedureDeclaration()
+	// TODO: think about parseStatement here or not
+	default:
+		return nil
 	}
 }
 
 // parseGlobalVariableStatement parses a global variable statement
-func (p *Parser) parseGlobalVariableStatement() *ast.GlobalVariableStatement {
-	stmt := &ast.GlobalVariableStatement{Token: p.currentToken}
+func (p *Parser) parseGlobalVariableDeclaration() *ast.GlobalVariableDeclaration {
+	gdecl := &ast.GlobalVariableDeclaration{Token: p.currentToken}
 
 	if !p.expectPeek(token.VARIABLE) {
 		return nil
 	}
-	stmt.Variable = p.parseVariableStatement()
+	gdecl.VariableDeclaration = p.parseVariableDeclaration()
 
-	return stmt
+	return gdecl
 
+}
+
+// parseVariableDeclaration parses a variable declaration
+func (p *Parser) parseVariableDeclaration() *ast.VariableDeclaration {
+	decl := &ast.VariableDeclaration{Token: p.currentToken}
+
+	if !p.expectPeek(token.IDENTIFIER) {
+		return nil
+	}
+	decl.Name = &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
+
+	if !p.expectPeek(token.COLON) {
+		return nil
+	}
+
+	if !p.expectPeek(token.INTEGER) && !p.expectPeek(token.BOOLEAN) && !p.expectPeek(token.STRING) && !p.expectPeek(token.FLOAT) {
+		return nil
+	}
+	decl.Type = p.currentToken
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return decl
 }
 
 // parseVariableStatement parses a variable statement
