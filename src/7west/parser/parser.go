@@ -218,10 +218,37 @@ func (p *Parser) parseVariableDeclaration() *ast.VariableDeclaration {
 		return nil
 	}
 
+	// Parse the type mark
+	typeMark := &ast.TypeMark{Token: p.currentToken}
+
 	if !p.expectPeek(token.INTEGER) && !p.expectPeek(token.BOOLEAN) && !p.expectPeek(token.STRING) && !p.expectPeek(token.FLOAT) {
 		return nil
 	}
-	decl.Type = p.currentToken
+
+	typeMark.Name = p.currentToken.Literal
+
+	// Optionally parse array bounds
+	if p.peekTokenIs(token.LSQBRACE) {
+		p.nextToken() // Consume '['
+
+		// Parse the bound
+		p.nextToken()
+		// if !p.currentTokenIs(token.INT) {
+		// 	return nil
+		// }
+		bound, err := strconv.ParseInt(p.currentToken.Literal, 10, 64)
+		if err != nil {
+			return nil
+		}
+
+		typeMark.Array = &ast.ArrayBound{Value: bound}
+
+		// Consume ']'
+		if !p.expectPeek(token.RSQBRACE) {
+			return nil
+		}
+	}
+	decl.Type = typeMark
 
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()

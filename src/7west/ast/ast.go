@@ -3,6 +3,7 @@ package ast
 import (
 	"a-compiler-in-go/src/7west/src/7west/token"
 	"bytes"
+	"fmt"
 	"strings"
 )
 
@@ -92,7 +93,7 @@ func (p *ProgramBody) String() string {
 type VariableDeclaration struct {
 	Token token.Token // the token.VARIABLE token
 	Name  *Identifier
-	Type  token.Token // the token.INTEGER | token.BOOLEAN | token.STRING | token.FLOAT token
+	Type  *TypeMark // the token.INTEGER | token.BOOLEAN | token.STRING | token.FLOAT token
 }
 
 func (vd *VariableDeclaration) declarationNode()     {}
@@ -101,12 +102,34 @@ func (vd *VariableDeclaration) String() string {
 	var out bytes.Buffer
 
 	out.WriteString(vd.TokenLiteral() + " ")
-	out.WriteString(vd.Name.String() + " ")
-	out.WriteString(": ")
-	out.WriteString(vd.Type.Literal)
+	out.WriteString(vd.Name.String())
+	out.WriteString(" : ")
+	out.WriteString(vd.Type.String())
 	out.WriteString(";")
 
 	return out.String()
+}
+
+type TypeMark struct {
+	Token token.Token
+	Name  string
+	Array *ArrayBound
+}
+
+func (tm *TypeMark) TokenLiteral() string { return tm.Token.Literal }
+func (tm *TypeMark) String() string {
+	if tm.Array != nil {
+		return tm.Name + tm.Array.String()
+	}
+	return tm.Name
+}
+
+type ArrayBound struct {
+	Value int64
+}
+
+func (ab *ArrayBound) String() string {
+	return "[" + fmt.Sprint(ab.Value) + "]"
 }
 
 // <variable_declaration> ::= variable <identifier> = <expression> --- 1
