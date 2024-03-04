@@ -70,11 +70,11 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.INTEGER, p.parseIntegerLiteral)
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.NOT, p.parsePrefixExpression)
-	// p.registerPrefix(token.MINUS, p.parsePrefixExpression)
-	// p.registerPrefix(token.TRUE, p.parseBoolean)
-	// p.registerPrefix(token.FALSE, p.parseBoolean)
+	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+	p.registerPrefix(token.TRUE, p.parseBoolean)
+	p.registerPrefix(token.FALSE, p.parseBoolean)
 	// p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
-	// p.registerPrefix(token.IF, p.parseIfExpression)
+	p.registerPrefix(token.IF, p.parseIfExpression)
 	// p.registerPrefix(token.PROCEDURE, p.parseFunctionLiteral)
 	// p.registerPrefix(token.LSQBRACE, p.parseArrayLiteral)
 
@@ -87,8 +87,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
 	p.registerInfix(token.AND, p.parseInfixExpression)
 	p.registerInfix(token.OR, p.parseInfixExpression)
-	// p.registerInfix(token.LT, p.parseInfixExpression)
-	// p.registerInfix(token.GT, p.parseInfixExpression)
+	p.registerInfix(token.LT, p.parseInfixExpression)
+	p.registerInfix(token.GT, p.parseInfixExpression)
 	// p.registerInfix(token.LPAREN, p.parseCallExpression)
 	// p.registerInfix(token.LSQBRACE, p.parseIndexExpression)
 	// Read two tokens, so currentToken and peekToken are both set
@@ -187,6 +187,7 @@ func (p *Parser) parseProgramBody() *ast.ProgramBody {
 		p.nextToken()
 	}
 
+	// TODO: edit this to expect format
 	p.nextToken() // Consume "end"
 	print("reached here with ", p.currentToken.Literal, "\n")
 	p.nextToken() // Consume "program"
@@ -548,7 +549,7 @@ func (p *Parser) parseGroupedExpression() ast.Expression {
 // if (<condition>) <consequence> else <alternative>
 func (p *Parser) parseIfExpression() ast.Expression {
 
-	expression := &ast.IfExpression{Token: p.currentToken}
+	expression := &ast.IfExpression{Token: p.currentToken} // if token
 
 	if !p.expectPeek(token.LPAREN) {
 		return nil
@@ -561,9 +562,13 @@ func (p *Parser) parseIfExpression() ast.Expression {
 		return nil
 	}
 
-	if !p.expectPeek(token.LBRACE) {
+	if !p.expectPeek(token.THEN) {
 		return nil
 	}
+
+	// if !p.expectPeek(token.LBRACE) {
+	// 	return nil
+	// }
 
 	expression.Consequence = p.parseBlockStatement()
 
@@ -572,11 +577,12 @@ func (p *Parser) parseIfExpression() ast.Expression {
 	// The whole part of this method is constructed in a way that
 	// allows an optional else but doesn’t add a parser error if there is none.
 	if p.peekTokenIs(token.ELSE) {
-		p.nextToken()
+		p.nextToken() // reach else token
+		p.nextToken() // consume else token
 
-		if !p.expectPeek(token.LBRACE) {
-			return nil
-		}
+		// if !p.expectPeek(token.LBRACE) {
+		// 	return nil
+		// }
 
 		expression.Alternative = p.parseBlockStatement()
 	}
@@ -595,13 +601,19 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 
 	p.nextToken()
 
-	for !p.currentTokenIs(token.RBRACE) && !p.currentTokenIs(token.EOF) {
+	for !p.currentTokenIs(token.END) && !p.peekTokenIs(token.IF) && !p.currentTokenIs(token.EOF) {
 		stmt := p.parseStatement()
 		if stmt != nil {
 			block.Statements = append(block.Statements, stmt)
 		}
 		p.nextToken()
 	}
+
+	if !p.currentTokenIs(token.END) && !p.peekTokenIs(token.IF) {
+		return nil
+	}
+	p.nextToken() // Consume "end"
+	p.nextToken() // Consume "if"
 
 	return block
 }
