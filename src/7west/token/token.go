@@ -67,7 +67,7 @@ const (
 	THEN      = "THEN"
 	PROCEDURE = "PROCEDURE"
 	BEGIN     = "BEGIN"
-	END       = "END"
+	END       = "end"
 	ELSE      = "ELSE"
 
 	// Data types

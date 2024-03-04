@@ -145,17 +145,37 @@ func (p *Parser) parseProgramBody() *ast.ProgramBody {
 	programBody.Statements = []ast.Statement{}
 	programBody.Declarations = []ast.Declaration{}
 
-	for p.currentToken.Type != token.EOF {
+	// Parse declarations until "begin" keyword
+	for !p.currentTokenIs(token.BEGIN) && !p.currentTokenIs(token.EOF) {
 		decl := p.parseDeclaration()
 		if decl != nil {
-			programBody.Declarations = append(programBody.Declarations, decl)
+			switch d := decl.(type) {
+			case *ast.VariableDeclaration:
+				programBody.Declarations = append(programBody.Declarations, d)
+			case *ast.ProcedureDeclaration:
+				programBody.Declarations = append(programBody.Declarations, d)
+			}
 		}
+		p.nextToken()
+	}
+
+	// TODO: might have advance to another token?
+	// Check for "begin" keyword
+	if !p.expectPeek(token.BEGIN) {
+		return nil
+	}
+
+	// Parse statements until "end program" keyword
+	for !p.currentTokenIs(token.END) && !p.peekTokenIs(token.PROGRAM) && !p.currentTokenIs(token.EOF) {
 		stmt := p.parseStatement()
 		if stmt != nil {
 			programBody.Statements = append(programBody.Statements, stmt)
 		}
 		p.nextToken()
 	}
+
+	p.nextToken() // Consume "end"
+	p.nextToken() // Consume "program"
 
 	return programBody
 }
@@ -616,20 +636,26 @@ func (p *Parser) parseProcedureBody() *ast.ProcedureBody {
 		p.nextToken()
 	}
 
+	// TODO: might have advance to another token?
+	// Check for "begin" keyword
+	if !p.expectPeek(token.BEGIN) {
+		return nil
+	}
+
+	// Parse statements until "end program" keyword
+	for !p.currentTokenIs(token.END) && !p.peekTokenIs(token.PROCEDURE) && !p.currentTokenIs(token.EOF) {
+		stmt := p.parseStatement()
+		if stmt != nil {
+			body.Statements = append(body.Statements, stmt)
+		}
+		p.nextToken()
+	}
+
+	p.nextToken() // Consume "end"
+	p.nextToken() // Consume "procedure"
+
 	return body
 }
-
-// func (p *Parser) parseProcedureLiteral() ast.Expression {
-
-// 	if !p.expectPeek(token.LBRACE) {
-// 		return nil
-// 	}
-
-// 	lit.Body = p.parseBlockStatement()
-// 	// lit.Body = nil
-
-// 	return lit
-// }
 
 func (p *Parser) parseProcedureParameters() []*ast.VariableDeclaration {
 	parameters := []*ast.VariableDeclaration{}
