@@ -203,12 +203,12 @@ func (p *Parser) parseProgramBody() *ast.ProgramBody {
 // parseStatement parses a statement
 func (p *Parser) parseStatement() ast.Statement {
 	switch p.currentToken.Type {
-	// case token.IDENTIFIER:
-	// 	return p.parseAssignmentStatement()
-	// case token.IF:
-	// 	return p.parseIfStatement()
+	case token.IDENTIFIER:
+		return p.parseAssignmentStatement()
+	case token.IF:
+		return p.parseExpressionStatement()
 	// case token.FOR:
-	// 	return p.parseLoopStatement()
+	// 	return p.parseExpressionStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
 	default:
@@ -315,21 +315,45 @@ func (p *Parser) parseVariableDeclaration() *ast.VariableDeclaration {
 }
 
 // parseVariableStatement parses a variable statement
-func (p *Parser) parseVariableStatement() *ast.VariableStatement {
-	stmt := &ast.VariableStatement{Token: p.currentToken}
+// func (p *Parser) parseVariableStatement() *ast.VariableStatement {
+// 	stmt := &ast.VariableStatement{Token: p.currentToken}
 
-	if !p.expectPeek(token.IDENTIFIER) {
-		return nil
-	}
+// 	if !p.expectPeek(token.IDENTIFIER) {
+// 		return nil
+// 	}
 
-	stmt.Name = &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
+// 	stmt.Name = &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
+
+// 	if !p.expectPeek(token.ASSIGN) {
+// 		return nil
+// 	}
+
+// 	p.nextToken()
+
+// 	stmt.Value = p.parseExpression(LOWEST)
+
+// 	if p.peekTokenIs(token.SEMICOLON) {
+// 		p.nextToken()
+// 	}
+
+// 	return stmt
+// }
+
+// parseAssignmentStatement parses an assignment statement
+// AssignmentStatement: destination ':=' expression ';'
+func (p *Parser) parseAssignmentStatement() *ast.AssignmentStatement {
+	stmt := &ast.AssignmentStatement{}
+
+	// Parse the destination
+	stmt.Destination = p.parseDestination()
 
 	if !p.expectPeek(token.ASSIGN) {
 		return nil
 	}
 
-	p.nextToken()
+	p.nextToken() // Consume the ':=' token
 
+	// Parse the expression
 	stmt.Value = p.parseExpression(LOWEST)
 
 	if p.peekTokenIs(token.SEMICOLON) {
@@ -337,6 +361,32 @@ func (p *Parser) parseVariableStatement() *ast.VariableStatement {
 	}
 
 	return stmt
+}
+
+// parseDestination parses the destination part of an assignment statement
+// Destination: identifier ('[' expression ']')?
+func (p *Parser) parseDestination() *ast.Destination {
+	dest := &ast.Destination{}
+
+	// Parse the identifier
+	// if !p.expectPeek(token.IDENTIFIER) {
+	// 	return nil
+	// }
+	dest.Identifier = &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
+
+	// Check if there's an array index
+	if p.peekTokenIs(token.LSQBRACE) {
+		p.nextToken() // Consume '['
+
+		p.nextToken() // Move to the expression inside the brackets
+		dest.Expression = p.parseExpression(LOWEST)
+
+		if !p.expectPeek(token.RSQBRACE) {
+			return nil
+		}
+	}
+
+	return dest
 }
 
 // currentTokenIs checks if the current token is of a given type

@@ -132,25 +132,45 @@ func (ab *ArrayBound) String() string {
 	return "[" + fmt.Sprint(ab.Value) + "]"
 }
 
-// <variable_declaration> ::= variable <identifier> = <expression> --- 1
-type VariableStatement struct {
-	Token token.Token // the token.VARIABLE token
-	Name  *Identifier
-	Value Expression
+type Destination struct {
+	Identifier *Identifier
+	Expression Expression // This will represent the index expression (if present)
 }
 
-func (vs *VariableStatement) statementNode()       {}
-func (vs *VariableStatement) TokenLiteral() string { return vs.Token.Literal }
-
-func (vs *VariableStatement) String() string {
+func (d *Destination) String() string {
 	var out bytes.Buffer
 
-	out.WriteString(vs.TokenLiteral() + " ")
-	out.WriteString(vs.Name.String())
+	if d.Identifier != nil {
+		out.WriteString(d.Identifier.String())
+	}
+
+	if d.Expression != nil {
+		out.WriteString("[")
+		out.WriteString(d.Expression.String())
+		out.WriteString("]")
+	}
+
+	return out.String()
+}
+
+// <variable_declaration> ::= variable <identifier> = <expression> --- 1
+type AssignmentStatement struct {
+	// Token token.Token // the token.VARIABLE token
+	Destination *Destination
+	Value       Expression
+}
+
+func (as *AssignmentStatement) statementNode()       {}
+func (as *AssignmentStatement) TokenLiteral() string { return "AssignmentStatement" }
+
+func (as *AssignmentStatement) String() string {
+	var out bytes.Buffer
+
+	out.WriteString(as.Destination.String())
 	out.WriteString(" := ")
 
-	if vs.Value != nil {
-		out.WriteString(vs.Value.String())
+	if as.Value != nil {
+		out.WriteString(as.Value.String())
 	}
 	out.WriteString(";")
 

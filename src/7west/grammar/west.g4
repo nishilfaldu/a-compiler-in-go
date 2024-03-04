@@ -37,6 +37,7 @@ statement:
 
 procedure_call: identifier '(' (argument_list)? ')';
 
+// expression here is "Value" in ast.go
 assignment_statement: destination ':=' expression;
 
 destination: identifier ('[' expression ']')?;
