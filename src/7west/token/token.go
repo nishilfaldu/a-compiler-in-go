@@ -65,8 +65,8 @@ const (
 	VARIABLE  = "VARIABLE"
 	IF        = "IF"
 	THEN      = "THEN"
-	PROCEDURE = "PROCEDURE"
-	BEGIN     = "BEGIN"
+	PROCEDURE = "procedure"
+	BEGIN     = "begin"
 	END       = "end"
 	ELSE      = "ELSE"
 
