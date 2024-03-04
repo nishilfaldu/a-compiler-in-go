@@ -357,6 +357,33 @@ func (bs *BlockStatement) String() string {
 	return out.String()
 }
 
+type LoopStatement struct {
+	Token         token.Token         // the for token
+	InitStatement AssignmentStatement // the initialization statement
+	Condition     Expression          // the loop condition expression
+	Body          *BlockStatement     // the loop body
+}
+
+func (bs *LoopStatement) statementNode() {}
+
+// TokenLiteral returns the literal value of the loop statement token
+func (ls *LoopStatement) TokenLiteral() string {
+	return ls.Token.Literal
+}
+
+// String returns the string representation of the loop statement
+func (ls *LoopStatement) String() string {
+	var out bytes.Buffer
+
+	out.WriteString(ls.TokenLiteral() + " (")
+	out.WriteString(ls.InitStatement.String() + "; ")
+	out.WriteString(ls.Condition.String() + ") {\n")
+	out.WriteString(ls.Body.String())
+	out.WriteString("\n}")
+
+	return out.String()
+}
+
 // type FunctionLiteral struct {
 // 	Token      token.Token
 // 	Parameters []*Identifier

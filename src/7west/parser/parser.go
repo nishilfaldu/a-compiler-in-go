@@ -207,8 +207,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseAssignmentStatement()
 	case token.IF:
 		return p.parseExpressionStatement()
-	// case token.FOR:
-	// 	return p.parseExpressionStatement()
+	case token.FOR:
+		return p.parseLoopStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
 	default:
@@ -387,6 +387,52 @@ func (p *Parser) parseDestination() *ast.Destination {
 	}
 
 	return dest
+}
+
+// parseLoopStatement parses a loop statement
+// LoopStatement: 'for' '(' AssignmentStatement ';' Expression ')' (Statement ';')* 'end for'
+func (p *Parser) parseLoopStatement() *ast.LoopStatement {
+	loopStmt := &ast.LoopStatement{Token: p.currentToken}
+
+	// Check for '('
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	// Parse the assignment statement
+	loopStmt.InitStatement = *p.parseAssignmentStatement()
+
+	// Check for ';'
+	if !p.expectPeek(token.SEMICOLON) {
+		return nil
+	}
+
+	p.nextToken() // Consume the ';'
+	loopStmt.Condition = p.parseExpression(LOWEST)
+
+	// Check for ')'
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	p.nextToken() // Consume the ')'
+
+	// Parse the loop body
+	// Parse the block statement enclosed in '{ }'
+	loopStmt.Body = p.parseBlockStatement()
+	// Check for "end for"
+	// if !p.currentTokenIs(token.END) && !p.peekTokenIs(token.FOR) {
+	// 	return nil
+	// }
+	// p.nextToken() // Consume "end"
+	// p.nextToken() // Consume "for"
+
+	if !p.expectPeek(token.FOR) {
+		return nil
+	}
+	p.nextToken() // Consume "for"
+
+	return loopStmt
 }
 
 // currentTokenIs checks if the current token is of a given type
@@ -637,6 +683,11 @@ func (p *Parser) parseIfExpression() ast.Expression {
 		expression.Alternative = p.parseBlockStatement()
 	}
 
+	if !p.expectPeek(token.IF) {
+		return nil
+	}
+	p.nextToken() // Consume "if"
+
 	return expression
 }
 
@@ -651,7 +702,7 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 
 	p.nextToken()
 
-	for !p.currentTokenIs(token.END) && !p.peekTokenIs(token.IF) && !p.currentTokenIs(token.EOF) {
+	for !p.currentTokenIs(token.END) && !p.currentTokenIs(token.EOF) {
 		stmt := p.parseStatement()
 		if stmt != nil {
 			block.Statements = append(block.Statements, stmt)
@@ -659,11 +710,11 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 		p.nextToken()
 	}
 
-	if !p.currentTokenIs(token.END) && !p.peekTokenIs(token.IF) {
-		return nil
-	}
-	p.nextToken() // Consume "end"
-	p.nextToken() // Consume "if"
+	// if !p.currentTokenIs(token.END) && !p.peekTokenIs(token.IF) {
+	// 	return nil
+	// }
+	// p.nextToken() // Consume "end"
+	// p.nextToken() // Consume "if" / "for"
 
 	return block
 }
