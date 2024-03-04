@@ -177,15 +177,30 @@ func (p *Parser) parseStatement() ast.Statement {
 	}
 }
 
+func (p *Parser) parseProcedureDeclaration() *ast.ProcedureDeclaration {
+	procedure := &ast.ProcedureDeclaration{}
+
+	// Parse the program header
+	procedure.Header = p.parseProcedureHeader()
+
+	// Parse the program body
+	procedure.Body = p.parseProcedureBody()
+
+	return procedure
+}
+
 // parseDeclaration parses a statement
-func (p *Parser) parseDeclaration() ast.Declaration {
+// With this change, parseDeclaration now returns an interface{},
+// which allows it to return either *ast.Procedure or ast.Declaration.
+// You can then handle the returned value accordingly in the calling code.
+func (p *Parser) parseDeclaration() interface{} {
 	switch p.currentToken.Type {
 	case token.GLOBAL:
 		return p.parseGlobalVariableDeclaration()
 	case token.VARIABLE:
 		return p.parseVariableDeclaration()
-	// case token.PROCEDURE:
-	// 	return p.parseProcedureDeclaration()
+	case token.PROCEDURE:
+		return p.parseProcedureDeclaration()
 	// TODO: think about parseStatement here or not
 	default:
 		return nil
@@ -218,13 +233,11 @@ func (p *Parser) parseVariableDeclaration() *ast.VariableDeclaration {
 		return nil
 	}
 
-	// Parse the type mark
-	typeMark := &ast.TypeMark{Token: p.currentToken}
-
-	if !p.expectPeek(token.INTEGER) && !p.expectPeek(token.BOOLEAN) && !p.expectPeek(token.STRING) && !p.expectPeek(token.FLOAT) {
+	if !p.currentTokenIs(token.INTEGER) && !p.currentTokenIs(token.BOOLEAN) && !p.currentTokenIs(token.STRING) && !p.currentTokenIs(token.FLOAT) {
 		return nil
 	}
-
+	// Parse the type mark
+	typeMark := &ast.TypeMark{Token: p.currentToken}
 	typeMark.Name = p.currentToken.Literal
 
 	// Optionally parse array bounds
@@ -233,9 +246,6 @@ func (p *Parser) parseVariableDeclaration() *ast.VariableDeclaration {
 
 		// Parse the bound
 		p.nextToken()
-		// if !p.currentTokenIs(token.INT) {
-		// 	return nil
-		// }
 		bound, err := strconv.ParseInt(p.currentToken.Literal, 10, 64)
 		if err != nil {
 			return nil
@@ -547,56 +557,148 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	return block
 }
 
-// fn <parameters> <block statement>
-//
-//	(<parameter one>, <parameter two>, <parameter three>, ...) : parameters
-//
-// parameter list can also be empty
-func (p *Parser) parseFunctionLiteral() ast.Expression {
+func (p *Parser) parseProcedureHeader() *ast.ProcedureHeader {
+	header := &ast.ProcedureHeader{Token: p.currentToken}
 
-	lit := &ast.FunctionLiteral{Token: p.currentToken}
+	// Ensure that the next token is "procedure"
+	if !p.expectPeek(token.PROCEDURE) {
+		return nil
+	}
+
+	// Parse the procedure name
+	if !p.expectPeek(token.IDENTIFIER) {
+		return nil
+	}
+	header.Name = &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
+
+	// Ensure that the next token is ":"
+	if !p.expectPeek(token.COLON) {
+		return nil
+	}
+
+	if !p.currentTokenIs(token.INTEGER) && !p.currentTokenIs(token.BOOLEAN) && !p.currentTokenIs(token.STRING) && !p.currentTokenIs(token.FLOAT) {
+		return nil
+	}
+	// Parse the type mark
+	typeMark := &ast.TypeMark{Token: p.currentToken}
+	typeMark.Name = p.currentToken.Literal
+
+	header.TypeMark = typeMark
 
 	if !p.expectPeek(token.LPAREN) {
 		return nil
 	}
 
-	lit.Parameters = p.parseFunctionParameters()
+	header.Parameters = p.parseProcedureParameters()
 
-	if !p.expectPeek(token.LBRACE) {
+	// Ensure that the next token is ")"
+	if !p.expectPeek(token.RPAREN) {
 		return nil
 	}
 
-	lit.Body = p.parseBlockStatement()
-
-	return lit
+	return header
 }
 
-func (p *Parser) parseFunctionParameters() []*ast.Identifier {
-	identifiers := []*ast.Identifier{}
+func (p *Parser) parseProcedureBody() *ast.ProcedureBody {
+	body := &ast.ProcedureBody{}
+	body.Statements = []ast.Statement{}
+	body.Declarations = []ast.Declaration{}
+
+	for p.currentToken.Type != token.END {
+		// Parse either a declaration or a statement
+		if decl, ok := p.parseDeclaration().(*ast.VariableDeclaration); ok {
+			body.Declarations = append(body.Declarations, decl)
+		} else if proc, ok := p.parseDeclaration().(*ast.ProcedureDeclaration); ok {
+			body.Declarations = append(body.Declarations, proc)
+		} else if stmt := p.parseStatement(); stmt != nil {
+			body.Statements = append(body.Statements, stmt)
+		}
+		p.nextToken()
+	}
+
+	return body
+}
+
+// func (p *Parser) parseProcedureLiteral() ast.Expression {
+
+// 	if !p.expectPeek(token.LBRACE) {
+// 		return nil
+// 	}
+
+// 	lit.Body = p.parseBlockStatement()
+// 	// lit.Body = nil
+
+// 	return lit
+// }
+
+func (p *Parser) parseProcedureParameters() []*ast.VariableDeclaration {
+	parameters := []*ast.VariableDeclaration{}
 
 	// if the next token is a RPAREN, the parameters are empty and we return an empty array
 	if p.peekTokenIs(token.RPAREN) {
 		p.nextToken()
-		return identifiers
+		return parameters
 	}
 
 	p.nextToken()
 
-	ident := &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
-	identifiers = append(identifiers, ident)
+	decl := p.parseVariableDeclarationAsParameter()
+	parameters = append(parameters, decl)
 
 	for p.peekTokenIs(token.COMMA) {
-		p.nextToken()
-		p.nextToken()
-		ident := &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
-		identifiers = append(identifiers, ident)
+		p.nextToken() // move to comma
+		p.nextToken() // consume the comma
+		decl := p.parseVariableDeclaration()
+		parameters = append(parameters, decl)
 	}
 
 	if !p.expectPeek(token.RPAREN) {
 		return nil
 	}
 
-	return identifiers
+	return parameters
+}
+
+func (p *Parser) parseVariableDeclarationAsParameter() *ast.VariableDeclaration {
+	decl := &ast.VariableDeclaration{Token: p.currentToken}
+
+	if !p.expectPeek(token.IDENTIFIER) {
+		return nil
+	}
+	decl.Name = &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
+
+	if !p.expectPeek(token.COLON) {
+		return nil
+	}
+
+	if !p.currentTokenIs(token.INTEGER) && !p.currentTokenIs(token.BOOLEAN) && !p.currentTokenIs(token.STRING) && !p.currentTokenIs(token.FLOAT) {
+		return nil
+	}
+	// Parse the type mark
+	typeMark := &ast.TypeMark{Token: p.currentToken}
+	typeMark.Name = p.currentToken.Literal
+
+	// Optionally parse array bounds
+	if p.peekTokenIs(token.LSQBRACE) {
+		p.nextToken() // Consume '['
+
+		// Parse the bound
+		p.nextToken()
+		bound, err := strconv.ParseInt(p.currentToken.Literal, 10, 64)
+		if err != nil {
+			return nil
+		}
+
+		typeMark.Array = &ast.ArrayBound{Value: bound}
+
+		// Consume ']'
+		if !p.expectPeek(token.RSQBRACE) {
+			return nil
+		}
+	}
+	decl.Type = typeMark
+
+	return decl
 }
 
 func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {

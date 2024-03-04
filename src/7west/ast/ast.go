@@ -337,27 +337,102 @@ func (bs *BlockStatement) String() string {
 	return out.String()
 }
 
-type FunctionLiteral struct {
-	Token      token.Token
-	Parameters []*Identifier
-	Body       *BlockStatement
+// type FunctionLiteral struct {
+// 	Token      token.Token
+// 	Parameters []*Identifier
+// 	Body       *BlockStatement
+// }
+
+// func (fl *FunctionLiteral) expressionNode()      {}
+// func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
+// func (fl *FunctionLiteral) String() string {
+// 	var out bytes.Buffer
+
+// 	params := []string{}
+// 	for _, p := range fl.Parameters {
+// 		params = append(params, p.String())
+// 	}
+
+// 	out.WriteString(fl.TokenLiteral())
+// 	out.WriteString("(")
+// 	out.WriteString(strings.Join(params, ", "))
+// 	out.WriteString(") ")
+// 	out.WriteString(fl.Body.String())
+
+//		return out.String()
+//	}
+type ProcedureDeclaration struct {
+	Token  token.Token // the PROCEDURE token
+	Header *ProcedureHeader
+	Body   *ProcedureBody
 }
 
-func (fl *FunctionLiteral) expressionNode()      {}
-func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
-func (fl *FunctionLiteral) String() string {
+// declarationNode marks this struct as a declaration node in the AST.
+func (pd *ProcedureDeclaration) declarationNode()     {}
+func (pd *ProcedureDeclaration) TokenLiteral() string { return pd.Token.Literal }
+func (pd *ProcedureDeclaration) String() string {
 	var out bytes.Buffer
 
-	params := []string{}
-	for _, p := range fl.Parameters {
-		params = append(params, p.String())
-	}
+	out.WriteString(pd.TokenLiteral() + " ")
+	out.WriteString(pd.Header.String())
+	out.WriteString(pd.Body.String())
 
-	out.WriteString(fl.TokenLiteral())
+	return out.String()
+}
+
+type ProcedureHeader struct {
+	Token      token.Token // the PROCEDURE token
+	Name       *Identifier
+	TypeMark   *TypeMark
+	Parameters []*VariableDeclaration
+}
+
+func (ph *ProcedureHeader) TokenLiteral() string { return ph.Token.Literal }
+
+func (ph *ProcedureHeader) String() string {
+	var out strings.Builder
+
+	out.WriteString("procedure ")
+	out.WriteString(ph.Name.String())
+	out.WriteString(" : ")
+	out.WriteString(ph.TypeMark.String())
 	out.WriteString("(")
-	out.WriteString(strings.Join(params, ", "))
-	out.WriteString(") ")
-	out.WriteString(fl.Body.String())
+	for i, param := range ph.Parameters {
+		if i > 0 {
+			out.WriteString(", ")
+		}
+		out.WriteString(param.String())
+	}
+	out.WriteString(")")
+
+	return out.String()
+}
+
+type ProcedureBody struct {
+	Declarations []Declaration
+	Statements   []Statement
+}
+
+func (pb *ProcedureBody) TokenLiteral() string {
+	if len(pb.Statements) > 0 {
+		return pb.Statements[0].TokenLiteral()
+	}
+	return ""
+}
+
+func (pb *ProcedureBody) String() string {
+	var out bytes.Buffer
+
+	for _, decl := range pb.Declarations {
+		out.WriteString(decl.String())
+		out.WriteString(";")
+	}
+	out.WriteString(" begin ")
+	for _, stmt := range pb.Statements {
+		out.WriteString(stmt.String())
+		out.WriteString(";")
+	}
+	out.WriteString(" end procedure")
 
 	return out.String()
 }
