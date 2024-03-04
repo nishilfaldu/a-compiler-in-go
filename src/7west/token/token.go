@@ -75,7 +75,7 @@ const (
 	FLOAT   = "float"
 	STRING  = "string"
 	BOOLEAN = "bool"
-	NOT     = "NOT"
+	NOT     = "not"
 )
 
 var keywords = map[string]TokenType{

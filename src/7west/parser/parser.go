@@ -49,6 +49,8 @@ var precedences = map[token.TokenType]int{
 	token.NOT_EQ:   EQUALS,
 	token.LT:       LESSGREATER,
 	token.GT:       LESSGREATER,
+	token.AND:      LESSGREATER,
+	token.OR:       LESSGREATER,
 	token.PLUS:     SUM,
 	token.MINUS:    SUM,
 	token.SLASH:    PRODUCT,
@@ -63,10 +65,11 @@ func New(l *lexer.Lexer) *Parser {
 		errors: []string{},
 	}
 
-	// p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
-	// p.registerPrefix(token.IDENTIFIER, p.parseIdentifier)
-	// p.registerPrefix(token.INTEGER, p.parseIntegerLiteral)
-	// p.registerPrefix(token.BANG, p.parsePrefixExpression)
+	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
+	p.registerPrefix(token.IDENTIFIER, p.parseIdentifier)
+	p.registerPrefix(token.INTEGER, p.parseIntegerLiteral)
+	p.registerPrefix(token.BANG, p.parsePrefixExpression)
+	p.registerPrefix(token.NOT, p.parsePrefixExpression)
 	// p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	// p.registerPrefix(token.TRUE, p.parseBoolean)
 	// p.registerPrefix(token.FALSE, p.parseBoolean)
@@ -75,13 +78,15 @@ func New(l *lexer.Lexer) *Parser {
 	// p.registerPrefix(token.PROCEDURE, p.parseFunctionLiteral)
 	// p.registerPrefix(token.LSQBRACE, p.parseArrayLiteral)
 
-	// p.infixParseFns = make(map[token.TokenType]infixParseFn)
-	// p.registerInfix(token.PLUS, p.parseInfixExpression)
+	p.infixParseFns = make(map[token.TokenType]infixParseFn)
+	p.registerInfix(token.PLUS, p.parseInfixExpression)
 	// p.registerInfix(token.MINUS, p.parseInfixExpression)
 	// p.registerInfix(token.SLASH, p.parseInfixExpression)
 	// p.registerInfix(token.ASTERISK, p.parseInfixExpression)
-	// p.registerInfix(token.EQ, p.parseInfixExpression)
-	// p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
+	p.registerInfix(token.EQ, p.parseInfixExpression)
+	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
+	p.registerInfix(token.AND, p.parseInfixExpression)
+	p.registerInfix(token.OR, p.parseInfixExpression)
 	// p.registerInfix(token.LT, p.parseInfixExpression)
 	// p.registerInfix(token.GT, p.parseInfixExpression)
 	// p.registerInfix(token.LPAREN, p.parseCallExpression)
@@ -186,6 +191,10 @@ func (p *Parser) parseProgramBody() *ast.ProgramBody {
 	print("reached here with ", p.currentToken.Literal, "\n")
 	p.nextToken() // Consume "program"
 	print("reached here with ", p.currentToken.Literal, "\n")
+
+	if p.currentTokenIs(token.SEMICOLON) {
+		p.nextToken() // Consume ";"
+	}
 
 	return programBody
 }
@@ -413,13 +422,16 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	// defer untrace(trace("parseExpression"))
 
 	prefix := p.prefixParseFns[p.currentToken.Type]
+	print(prefix, p.currentToken.Literal, "prefix\n")
 	if prefix == nil {
 		p.noPrefixParseFnError(p.currentToken.Type)
 		return nil
 	}
 	leftExp := prefix()
+	print("after leftExp ", p.currentToken.Literal, " prefix\n")
 
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecendence() {
+		print("this executes\n")
 		infix := p.infixParseFns[p.peekToken.Type]
 		if infix == nil {
 			return leftExp
@@ -694,6 +706,10 @@ func (p *Parser) parseProcedureBody() *ast.ProcedureBody {
 	print("reached here with ", p.currentToken.Literal, "\n")
 	// p.nextToken() // Consume "end"
 	// p.nextToken() // Consume "procedure"
+
+	if p.currentTokenIs(token.SEMICOLON) {
+		p.nextToken() // Consume ";"
+	}
 
 	return procedureBody
 }
