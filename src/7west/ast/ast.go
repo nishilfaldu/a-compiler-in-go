@@ -82,11 +82,13 @@ func (p *ProgramBody) String() string {
 
 	for _, d := range p.Declarations {
 		out.WriteString(d.String())
+		out.WriteString(";")
 	}
 	for _, s := range p.Statements {
 		out.WriteString(s.String())
+		out.WriteString(";")
 	}
-
+	out.WriteString(" end program ")
 	return out.String()
 }
 
@@ -266,6 +268,15 @@ func (il *IntegerLiteral) expressionNode()      {}
 func (il *IntegerLiteral) TokenLiteral() string { return il.Token.Literal }
 func (il *IntegerLiteral) String() string       { return il.Token.Literal }
 
+type StringLiteral struct {
+	Token token.Token
+	Value string
+}
+
+func (sl *StringLiteral) expressionNode()      {}
+func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }
+func (sl *StringLiteral) String() string       { return sl.Token.Literal }
+
 type PrefixExpression struct {
 	Token    token.Token // The prefix token, e.g. !
 	Operator string
@@ -318,8 +329,8 @@ func (b *Boolean) String() string       { return b.Token.Literal }
 type IfExpression struct {
 	Token       token.Token // The 'if' token
 	Condition   Expression
-	Consequence *BlockStatement
-	Alternative *BlockStatement
+	Consequence *IfBlockStatement
+	Alternative *IfBlockStatement
 }
 
 func (ie *IfExpression) expressionNode()      {}
@@ -340,14 +351,30 @@ func (ie *IfExpression) String() string {
 	return out.String()
 }
 
-type BlockStatement struct {
-	Token      token.Token
+type IfBlockStatement struct {
+	Token      token.Token // can be then or else?
 	Statements []Statement
 }
 
-func (bs *BlockStatement) statementNode()       {}
-func (bs *BlockStatement) TokenLiteral() string { return bs.Token.Literal }
-func (bs *BlockStatement) String() string {
+func (bs *IfBlockStatement) statementNode()       {}
+func (bs *IfBlockStatement) TokenLiteral() string { return bs.Token.Literal }
+func (bs *IfBlockStatement) String() string {
+	var out bytes.Buffer
+
+	for _, s := range bs.Statements {
+		out.WriteString(s.String())
+	}
+
+	return out.String()
+}
+
+type ForBlockStatement struct {
+	Statements []Statement
+}
+
+func (bs *ForBlockStatement) statementNode()       {}
+func (bs *ForBlockStatement) TokenLiteral() string { return "for" }
+func (bs *ForBlockStatement) String() string {
 	var out bytes.Buffer
 
 	for _, s := range bs.Statements {
@@ -361,7 +388,7 @@ type LoopStatement struct {
 	Token         token.Token         // the for token
 	InitStatement AssignmentStatement // the initialization statement
 	Condition     Expression          // the loop condition expression
-	Body          *BlockStatement     // the loop body
+	Body          *ForBlockStatement  // the loop body
 }
 
 func (bs *LoopStatement) statementNode() {}
@@ -450,7 +477,7 @@ func (ph *ProcedureHeader) String() string {
 		}
 		out.WriteString(param.String())
 	}
-	out.WriteString(")")
+	out.WriteString(") ")
 
 	return out.String()
 }

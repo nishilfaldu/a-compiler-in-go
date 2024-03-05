@@ -68,7 +68,7 @@ const (
 	PROCEDURE = "procedure"
 	BEGIN     = "begin"
 	END       = "end"
-	ELSE      = "ELSE"
+	ELSE      = "else"
 
 	// Data types
 	INTEGER = "integer"
