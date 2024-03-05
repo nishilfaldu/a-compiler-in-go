@@ -45,17 +45,20 @@ const (
 )
 
 var precedences = map[token.TokenType]int{
-	token.EQ:       EQUALS,
-	token.NOT_EQ:   EQUALS,
-	token.LT:       LESSGREATER,
-	token.GT:       LESSGREATER,
-	token.AND:      LESSGREATER,
-	token.OR:       LESSGREATER,
-	token.PLUS:     SUM,
-	token.MINUS:    SUM,
-	token.SLASH:    PRODUCT,
-	token.ASTERISK: PRODUCT,
-	token.LPAREN:   CALL,
+	token.EQ:         EQUALS,
+	token.NOT_EQ:     EQUALS,
+	token.LT:         LESSGREATER,
+	token.GT:         LESSGREATER,
+	token.GREATER_EQ: LESSGREATER,
+	token.LESS_EQ:    LESSGREATER,
+	token.AND:        LESSGREATER,
+	token.OR:         LESSGREATER,
+	token.PLUS:       SUM,
+	token.MINUS:      SUM,
+	token.SLASH:      PRODUCT,
+	token.ASTERISK:   PRODUCT,
+	token.LPAREN:     CALL,
+	token.LSQBRACE:   INDEX,
 }
 
 // New creates a new Parser
@@ -90,6 +93,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.OR, p.parseInfixExpression)
 	p.registerInfix(token.LT, p.parseInfixExpression)
 	p.registerInfix(token.GT, p.parseInfixExpression)
+	p.registerInfix(token.GREATER_EQ, p.parseInfixExpression)
+	p.registerInfix(token.LESS_EQ, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
 	p.registerInfix(token.LSQBRACE, p.parseIndexExpression)
 	// Read two tokens, so currentToken and peekToken are both set
@@ -384,10 +389,10 @@ func (p *Parser) parseDestination() *ast.Destination {
 
 	// Check if there's an array index
 	if p.peekTokenIs(token.LSQBRACE) {
-		p.nextToken() // Consume '['
+		p.nextToken() // move to '['
 
 		p.nextToken() // Move to the expression inside the brackets
-		dest.Expression = p.parseExpression(LOWEST)
+		dest.Expression = p.parseIndexAssignment()
 
 		if !p.expectPeek(token.RSQBRACE) {
 			return nil
@@ -395,6 +400,10 @@ func (p *Parser) parseDestination() *ast.Destination {
 	}
 
 	return dest
+}
+
+func (p *Parser) parseIndexAssignment() ast.Expression {
+	return p.parseExpression(LOWEST)
 }
 
 // parseLoopStatement parses a loop statement
@@ -576,6 +585,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	leftExp := prefix()
 	print("after leftExp ", p.currentToken.Literal, "\n")
 
+	print("precedence ", precedence, " ", p.peekPrecendence(), "\n")
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecendence() {
 		print("peek token type ", p.peekToken.Type, "\n")
 		infix := p.infixParseFns[p.peekToken.Type]
@@ -1035,9 +1045,9 @@ func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 
 func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 	exp := &ast.IndexExpression{Token: p.currentToken, Left: left}
-
+	print("here in parse index expression ", p.currentToken.Literal, "\n")
 	p.nextToken()
-
+	// os.Exit(1)
 	exp.Index = p.parseExpression(LOWEST)
 
 	if !p.expectPeek(token.RSQBRACE) {

@@ -193,7 +193,7 @@ func (l *Lexer) readIdentifier() string {
 	// remember our current position in the input string
 	position := l.position
 	// keep reading until we encounter a non-letter-character
-	for isLetter(l.ch) {
+	for isLetter(l.ch) || isDigit(l.ch) {
 		// advance our position in the input string
 		l.readChar()
 	}
