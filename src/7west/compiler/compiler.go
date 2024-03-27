@@ -40,7 +40,11 @@ func (c *Compiler) Compile(node ast.Node) error {
 			return err
 		}
 
-		// case *ast.ProgramHeader:
+	case *ast.ProgramHeader:
+		// No compilation needed for the program header
+		// as it typically contains metadata about the program.
+		// You can optionally perform any necessary validation or processing here.
+
 	}
 
 	return nil
