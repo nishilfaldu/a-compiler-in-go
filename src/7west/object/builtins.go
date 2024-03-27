@@ -17,4 +17,15 @@ var Builtins = []struct {
 		},
 		},
 	},
+	{
+		"putinteger",
+		&Builtin{Fn: func(args ...Object) Object {
+			for _, arg := range args {
+				fmt.Println(arg.Inspect())
+			}
+
+			return nil
+		},
+		},
+	},
 }

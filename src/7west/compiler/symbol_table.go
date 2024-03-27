@@ -1,5 +1,7 @@
 package compiler
 
+import "fmt"
+
 type SymbolScope string
 
 const (
@@ -50,6 +52,9 @@ func (s *SymbolTable) Define(name string) Symbol {
 
 func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
 	obj, ok := s.store[name]
+	if name == "f" {
+		print(ok, " i detect\n")
+	}
 	if !ok && s.Outer != nil {
 		obj, ok = s.Outer.Resolve(name)
 		if !ok {
@@ -83,7 +88,37 @@ func (s *SymbolTable) DefineBuiltin(index int, name string) Symbol {
 }
 
 func (s *SymbolTable) DefineFunctionName(name string) Symbol {
+	print("name: ", name, "\n")
 	symbol := Symbol{Name: name, Index: 0, Scope: FunctionScope}
 	s.store[name] = symbol
 	return symbol
+}
+
+// PrintSymbolTable prints the contents of the symbol table along with labels.
+func PrintSymbolTable(s *SymbolTable) {
+	fmt.Println("Symbol Table:")
+	fmt.Println("=============")
+
+	// Print symbols defined in the current scope
+	fmt.Println("Current Scope:")
+	fmt.Println("-------------")
+	for name, sym := range s.store {
+		fmt.Printf("Name: %-10s Scope: %-10s Index: %-5d\n", name, sym.Scope, sym.Index)
+	}
+
+	// Print free symbols
+	if len(s.FreeSymbols) > 0 {
+		fmt.Println("\nFree Symbols:")
+		fmt.Println("-------------")
+		for _, sym := range s.FreeSymbols {
+			fmt.Printf("Name: %-10s Scope: %-10s Index: %-5d\n", sym.Name, sym.Scope, sym.Index)
+		}
+	}
+
+	// Recursively print symbols in outer scopes
+	if s.Outer != nil {
+		fmt.Println("\nOuter Scope:")
+		fmt.Println("------------")
+		PrintSymbolTable(s.Outer)
+	}
 }
