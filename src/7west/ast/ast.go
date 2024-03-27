@@ -288,7 +288,7 @@ func (fl *FloatLiteral) TokenLiteral() string { return fl.Token.Literal }
 func (fl *FloatLiteral) String() string       { return fl.Token.Literal }
 
 type StringLiteral struct {
-	Token token.Token
+	Token token.Token // the token.STRING token
 	Value string
 }
 

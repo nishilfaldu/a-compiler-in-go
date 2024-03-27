@@ -72,6 +72,33 @@ func (c *Compiler) Compile(node ast.Node) error {
 		if !ok {
 			return fmt.Errorf("undefined variable %s", node.Value)
 		}
+	// AssignmentStatement node and Destination node are merged in one case
+	case *ast.AssignmentStatement:
+		err := c.Compile(node.Value)
+		if err != nil {
+			return err
+		}
+
+		// Compile the identifier part of the destination
+		symbol, ok := c.symbolTable.Resolve(node.Destination.Identifier.Value)
+		if !ok {
+			// If the identifier is not found in the local symbol table, check the outer scopes
+			symbol = c.symbolTable.Define(node.Destination.Identifier.Value)
+		}
+
+		// If the assignment has an index expression, compile it first
+		if node.Destination.Expression != nil {
+			err := c.Compile(node.Destination.Expression)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Compile the identifier part of the assignment
+		// err = c.Compile(node.Destination.Identifier)
+		// if err != nil {
+		// 	return err
+		// }
 
 	case *ast.ExpressionStatement:
 		err := c.Compile(node.Expression)
@@ -83,6 +110,27 @@ func (c *Compiler) Compile(node ast.Node) error {
 		err := c.Compile(node.ReturnValue)
 		if err != nil {
 			return err
+		}
+
+	case *ast.StringLiteral:
+		str := &object.String{Value: node.Value}
+
+	case *ast.ArrayLiteral:
+		for _, el := range node.Elements {
+			err := c.Compile(el)
+			if err != nil {
+				return err
+			}
+		}
+
+	case *ast.IndexExpression:
+		err := c.Compile(node.Left)
+		if err != nil {
+			return err
+		}
+		err_ := c.Compile(node.Index)
+		if err_ != nil {
+			return err_
 		}
 
 	case *ast.CallExpression:
@@ -107,6 +155,9 @@ func (c *Compiler) Compile(node ast.Node) error {
 		if err != nil {
 			return err
 		}
+
+		numLocals := c.symbolTable.numDefinitions
+		c.leaveScope()
 
 	case *ast.ProcedureHeader:
 		c.enterScope()
