@@ -420,7 +420,7 @@ func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 	p.nextToken() // Consume the '('
 
 	// Parse the assignment statement
-	loopStmt.InitStatement = *p.parseAssignmentStatement()
+	loopStmt.InitStatement = p.parseAssignmentStatement()
 
 	if p.currentTokenIs(token.SEMICOLON) {
 		p.nextToken() // Consume the ';'

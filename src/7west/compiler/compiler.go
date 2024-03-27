@@ -73,10 +73,60 @@ func (c *Compiler) Compile(node ast.Node) error {
 			return fmt.Errorf("undefined variable %s", node.Value)
 		}
 
+	case *ast.LoopStatement:
+		// Compile the initialization statement
+		err := c.Compile(node.InitStatement)
+		if err != nil {
+			return err
+		}
+
+		// Compile the loop condition
+		err_ := c.Compile(node.Condition)
+		if err_ != nil {
+			return err_
+		}
+
+		// Compile the loop body
+		err = c.Compile(node.Body)
+		if err != nil {
+			return err
+		}
+
+	case *ast.ForBlockStatement:
+		for _, stmt := range node.Statements {
+			err := c.Compile(stmt)
+			if err != nil {
+				return err
+			}
+		}
+
 	case *ast.PrefixExpression:
 		err := c.Compile(node.Right)
 		if err != nil {
 			return err
+		}
+
+	case *ast.InfixExpression:
+		if node.Operator == "<" {
+			err := c.Compile(node.Right)
+			if err != nil {
+				return err
+			}
+
+			err_ := c.Compile(node.Left)
+			if err_ != nil {
+				return err_
+			}
+		}
+
+		err := c.Compile(node.Left)
+		if err != nil {
+			return err
+		}
+
+		err_ := c.Compile(node.Right)
+		if err_ != nil {
+			return err_
 		}
 
 	case *ast.IfExpression:
@@ -147,6 +197,13 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 	case *ast.StringLiteral:
 		str := &object.String{Value: node.Value}
+
+	case *ast.IntegerLiteral:
+		integer := &object.Integer{Value: node.Value}
+
+	case *ast.Boolean:
+		// TODO: not sure if this is required
+		// boolean := &object.Boolean{Value: node.Value}
 
 	case *ast.ArrayLiteral:
 		for _, el := range node.Elements {

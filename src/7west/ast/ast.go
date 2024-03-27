@@ -404,10 +404,10 @@ func (bs *ForBlockStatement) String() string {
 }
 
 type LoopStatement struct {
-	Token         token.Token         // the for token
-	InitStatement AssignmentStatement // the initialization statement
-	Condition     Expression          // the loop condition expression
-	Body          *ForBlockStatement  // the loop body
+	Token         token.Token          // the for token
+	InitStatement *AssignmentStatement // the initialization statement
+	Condition     Expression           // the loop condition expression
+	Body          *ForBlockStatement   // the loop body
 }
 
 func (bs *LoopStatement) statementNode() {}
