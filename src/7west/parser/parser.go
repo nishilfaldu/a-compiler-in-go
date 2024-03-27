@@ -1047,7 +1047,6 @@ func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 	exp := &ast.IndexExpression{Token: p.currentToken, Left: left}
 	print("here in parse index expression ", p.currentToken.Literal, "\n")
 	p.nextToken()
-	// os.Exit(1)
 	exp.Index = p.parseExpression(LOWEST)
 
 	if !p.expectPeek(token.RSQBRACE) {
