@@ -48,10 +48,11 @@ func (l *Lexer) NextToken() token.Token {
 			// and set the token to the equality operator
 			// cannot use newToken here as it requires single byte for the literal argument
 			tok = token.Token{Type: token.EQ, Literal: string(ch) + string(l.ch)}
-		} else {
-			// otherwise, it's just a regular assignment operator
-			tok = newToken(token.ASSIGN, l.ch)
 		}
+		// else {
+		// 	// otherwise, it's just a regular assignment operator
+		// 	tok = newToken(token.ASSIGN, l.ch)
+		// }
 	case ';':
 		tok = newToken(token.SEMICOLON, l.ch)
 	case ':':
@@ -60,7 +61,7 @@ func (l *Lexer) NextToken() token.Token {
 			// read the next character
 			l.readChar()
 			// and set the token to the equality operator
-			// cannot use newToken here as it requires single byte for the literal argument
+			// cannot use newToken here as it requires single byte for the literal argument - ": + ="
 			tok = token.Token{Type: token.ASSIGN, Literal: string(ch) + string(l.ch)}
 		} else {
 			tok = newToken(token.COLON, l.ch)
@@ -192,7 +193,7 @@ func (l *Lexer) readIdentifier() string {
 	// remember our current position in the input string
 	position := l.position
 	// keep reading until we encounter a non-letter-character
-	for isLetter(l.ch) {
+	for isLetter(l.ch) || isDigit(l.ch) {
 		// advance our position in the input string
 		l.readChar()
 	}

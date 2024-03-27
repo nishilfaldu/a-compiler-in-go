@@ -15,7 +15,7 @@ const (
 	ERROR   = "ERROR"
 
 	// Identifiers + literals
-	IDENT = "IDENT" // add, foobar, x, y, ...
+	IDENTIFIER = "IDENTIFIER" // add, foobar, x, y, ...
 
 	// Operators
 	// ASSIGN   = "="
@@ -50,32 +50,32 @@ const (
 	RSQBRACE = "]"
 
 	// loops
-	FOR = "FOR"
+	FOR = "for"
 
 	// Keywords
 	// FUNCTION = "FUNCTION"
-	LET   = "LET"
-	TRUE  = "TRUE"
-	FALSE = "FALSE"
+	LET   = "let"
+	TRUE  = "true"
+	FALSE = "false"
 	// ELSE      = "ELSE"
-	RETURN    = "RETURN"
-	GLOBAL    = "GLOBAL"
-	PROGRAM   = "PROGRAM"
-	IS        = "IS"
-	VARIABLE  = "VARIABLE"
-	IF        = "IF"
-	THEN      = "THEN"
-	PROCEDURE = "PROCEDURE"
-	BEGIN     = "BEGIN"
-	END       = "END"
-	ELSE      = "ELSE"
+	RETURN    = "return"
+	GLOBAL    = "global"
+	PROGRAM   = "program"
+	IS        = "is"
+	VARIABLE  = "variable"
+	IF        = "if"
+	THEN      = "then"
+	PROCEDURE = "procedure"
+	BEGIN     = "begin"
+	END       = "end"
+	ELSE      = "else"
 
 	// Data types
-	INTEGER = "INTEGER"
-	FLOAT   = "FLOAT"
-	STRING  = "STRING"
-	BOOLEAN = "BOOLEAN"
-	NOT     = "NOT"
+	INTEGER = "integer"
+	FLOAT   = "float"
+	STRING  = "string"
+	BOOLEAN = "bool"
+	NOT     = "not"
 )
 
 var keywords = map[string]TokenType{
@@ -111,5 +111,5 @@ func LookupIdent(ident string) TokenType {
 	// if ok {
 	// 	return tok
 	// }
-	return IDENT
+	return IDENTIFIER
 }
