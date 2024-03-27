@@ -10,6 +10,8 @@ type Compiler struct {
 	symbolTable *SymbolTable
 }
 
+// TODO: store types in symbol table...maybe?
+
 func New() *Compiler {
 	symbolTable := NewSymbolTable()
 
@@ -95,8 +97,52 @@ func (c *Compiler) Compile(node ast.Node) error {
 				return err
 			}
 		}
+
+	case *ast.ProcedureDeclaration:
+		err := c.Compile(node.Header)
+		if err != nil {
+			return err
+		}
+		err = c.Compile(node.Body)
+		if err != nil {
+			return err
+		}
+
+	case *ast.ProcedureHeader:
+		c.enterScope()
+
+		// define the function name and parameters in the symbol table
+		if node.Name != nil {
+			c.symbolTable.DefineFunctionName(node.Name.Value)
+		}
+
+		for _, param := range node.Parameters {
+			c.symbolTable.Define(param.Name.Value)
+		}
+
+	case *ast.ProcedureBody:
+		for _, decl := range node.Declarations {
+			err := c.Compile(decl)
+			if err != nil {
+				return err
+			}
+		}
+		for _, stmt := range node.Statements {
+			err := c.Compile(stmt)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
 
+}
+
+func (c *Compiler) enterScope() {
+	c.symbolTable = NewEnclosedSymbolTable(c.symbolTable)
+}
+
+func (c *Compiler) leaveScope() {
+	c.symbolTable = c.symbolTable.Outer
 }
