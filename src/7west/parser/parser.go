@@ -71,6 +71,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
 	p.registerPrefix(token.IDENTIFIER, p.parseIdentifier)
 	p.registerPrefix(token.INTEGER, p.parseIntegerLiteral)
+	p.registerPrefix(token.FLOAT, p.parseFloatLiteral)
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.NOT, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
@@ -517,6 +518,7 @@ func (p *Parser) Errors() []string {
 }
 
 func (p *Parser) peekError(t token.TokenType) {
+	print("when")
 	msg := fmt.Sprintf("expected next token to be %s, got %s instead", t, p.peekToken.Type)
 	p.errors = append(p.errors, msg)
 }
@@ -622,6 +624,20 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 	if err != nil {
 		// if we encounter an error, we add it to the parser’s error list
 		msg := fmt.Sprintf("could not parse %q as integer", p.currentToken.Literal)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+	lit.Value = value
+
+	return lit
+}
+
+func (p *Parser) parseFloatLiteral() ast.Expression {
+	lit := &ast.FloatLiteral{Token: p.currentToken}
+
+	value, err := strconv.ParseFloat(p.currentToken.Literal, 64)
+	if err != nil {
+		msg := fmt.Sprintf("could not parse %q as float", p.currentToken.Literal)
 		p.errors = append(p.errors, msg)
 		return nil
 	}
@@ -758,10 +774,10 @@ func (p *Parser) parseIfExpression() ast.Expression {
 	// 	p.nextToken()
 	// }
 
-	if !p.expectPeek(token.SEMICOLON) {
-		return nil
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken() // Consume ";"
 	}
-	p.nextToken() // Consume ";"
+	// p.nextToken() // Consume ";"
 
 	return expression
 }
