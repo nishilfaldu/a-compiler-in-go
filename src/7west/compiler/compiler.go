@@ -78,6 +78,33 @@ func (c *Compiler) Compile(node ast.Node) error {
 		if err != nil {
 			return err
 		}
+
+	case *ast.IfExpression:
+		err := c.Compile(node.Condition)
+		if err != nil {
+			return err
+		}
+
+		err_ := c.Compile(node.Consequence)
+		if err_ != nil {
+			return err_
+		}
+
+		if node.Alternative != nil {
+			err := c.Compile(node.Alternative)
+			if err != nil {
+				return err
+			}
+		}
+
+	case *ast.IfBlockStatement:
+		for _, stmt := range node.Statements {
+			err := c.Compile(stmt)
+			if err != nil {
+				return err
+			}
+		}
+
 	// AssignmentStatement node and Destination node are merged in one case
 	case *ast.AssignmentStatement:
 		err := c.Compile(node.Value)
