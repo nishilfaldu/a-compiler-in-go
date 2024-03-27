@@ -33,6 +33,16 @@ type Program struct {
 	Body   *ProgramBody
 }
 
+func (p *Program) TokenLiteral() string {
+	if p.Header != nil {
+		return p.Header.TokenLiteral()
+	} else if p.Body != nil {
+		return p.Body.TokenLiteral()
+	} else {
+		return ""
+	}
+}
+
 // String returns a string representation of the Program node and all its children
 func (p *Program) String() string {
 	var out bytes.Buffer
