@@ -72,6 +72,12 @@ func (c *Compiler) Compile(node ast.Node) error {
 		if !ok {
 			return fmt.Errorf("undefined variable %s", node.Value)
 		}
+
+	case *ast.PrefixExpression:
+		err := c.Compile(node.Right)
+		if err != nil {
+			return err
+		}
 	// AssignmentStatement node and Destination node are merged in one case
 	case *ast.AssignmentStatement:
 		err := c.Compile(node.Value)
