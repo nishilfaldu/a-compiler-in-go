@@ -21,7 +21,7 @@ var Builtins = []struct {
 		},
 	},
 	{
-		"getBool",
+		"getbool",
 		&Builtin{Fn: func(args ...Object) Object {
 			// Implement logic to read bool value from standard input
 			// For simplicity, we'll assume the input is provided correctly
@@ -30,7 +30,7 @@ var Builtins = []struct {
 		},
 	},
 	{
-		"getInteger",
+		"getinteger",
 		&Builtin{Fn: func(args ...Object) Object {
 			// Implement logic to read integer value from standard input
 			// For simplicity, we'll assume the input is provided correctly
@@ -39,7 +39,7 @@ var Builtins = []struct {
 		},
 	},
 	{
-		"getFloat",
+		"getfloat",
 		&Builtin{Fn: func(args ...Object) Object {
 			// Implement logic to read float value from standard input
 			// For simplicity, we'll assume the input is provided correctly
@@ -48,7 +48,7 @@ var Builtins = []struct {
 		},
 	},
 	{
-		"getString",
+		"getstring",
 		&Builtin{Fn: func(args ...Object) Object {
 			// Implement logic to read string value from standard input
 			// For simplicity, we'll assume the input is provided correctly
@@ -57,7 +57,7 @@ var Builtins = []struct {
 		},
 	},
 	{
-		"putBool",
+		"putbool",
 		&Builtin{Fn: func(args ...Object) Object {
 			// Implement logic to write bool value to standard output
 			// For simplicity, we'll just return a boolean indicating success
@@ -66,7 +66,7 @@ var Builtins = []struct {
 		},
 	},
 	{
-		"putInteger",
+		"putinteger",
 		&Builtin{Fn: func(args ...Object) Object {
 			// Implement logic to write integer value to standard output
 			// For simplicity, we'll just return a boolean indicating success
@@ -75,7 +75,7 @@ var Builtins = []struct {
 		},
 	},
 	{
-		"putFloat",
+		"putfloat",
 		&Builtin{Fn: func(args ...Object) Object {
 			// Implement logic to write float value to standard output
 			// For simplicity, we'll just return a boolean indicating success
@@ -84,7 +84,7 @@ var Builtins = []struct {
 		},
 	},
 	{
-		"putString",
+		"putstring",
 		&Builtin{Fn: func(args ...Object) Object {
 			// Implement logic to write string value to standard output
 			// For simplicity, we'll just return a boolean indicating success

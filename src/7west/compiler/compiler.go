@@ -65,9 +65,17 @@ func (c *Compiler) Compile(node ast.Node) error {
 		}
 
 	case *ast.VariableDeclaration:
-		symbol := c.symbolTable.Define(node.Name.Value)
+		symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name)
 		// err := c.Compile(node.)
 		print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
+
+	case *ast.GlobalVariableDeclaration:
+		// Handle global variable declaration
+		// First, compile the inner variable declaration
+		// Then, define the symbol in the symbol table as a global variable
+		print("something bro\n")
+		symbol := c.symbolTable.DefineGlobal(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name)
+		print(symbol.Name, symbol.Index, symbol.Scope, "in Global Variable Declaration case\n")
 
 	case *ast.Identifier:
 		symbol, ok := c.symbolTable.Resolve(node.Value)
@@ -172,8 +180,8 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 		print(symbol.Name, symbol.Index, symbol.Scope, "in AssignmentStatement case\n")
 		if !ok {
-			// If the identifier is not found in the local symbol table, check the outer scopes
-			symbol = c.symbolTable.Define(node.Destination.Identifier.Value)
+			// symbol = c.symbolTable.Define(node.Destination.Identifier.Value)
+			return fmt.Errorf("variable %s not defined", node.Destination.Identifier.Value)
 		}
 
 		// If the assignment has an index expression - array indexing - compile it first
@@ -276,7 +284,7 @@ func (c *Compiler) Compile(node ast.Node) error {
 		// PrintSymbolTable(c.symbolTable)
 
 		for _, param := range node.Parameters {
-			c.symbolTable.Define(param.Name.Value)
+			c.symbolTable.Define(param.Name.Value, param.Type.Name)
 		}
 
 	case *ast.ProcedureBody:

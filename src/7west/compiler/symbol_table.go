@@ -41,13 +41,26 @@ func NewSymbolTable() *SymbolTable {
 	return &SymbolTable{store: s}
 }
 
-func (s *SymbolTable) Define(name string) Symbol {
-	symbol := Symbol{Name: name, Index: s.numDefinitions}
+func (s *SymbolTable) Define(name string, type_ string) Symbol {
+	symbol := Symbol{Name: name, Index: s.numDefinitions, Type: type_}
 	if s.Outer == nil {
 		symbol.Scope = GlobalScope
 	} else {
 		symbol.Scope = LocalScope
 	}
+	s.store[name] = symbol
+	s.numDefinitions++
+	return symbol
+}
+
+func (s *SymbolTable) DefineGlobal(name string, type_ string) Symbol {
+	// Check if the variable already exists in the global scope
+	if symbol, ok := s.store[name]; ok && symbol.Scope == GlobalScope {
+		return symbol // Return the existing global variable symbol
+	}
+
+	// If not, define the variable in the global scope
+	symbol := Symbol{Name: name, Index: s.numDefinitions, Scope: GlobalScope, Type: type_}
 	s.store[name] = symbol
 	s.numDefinitions++
 	return symbol

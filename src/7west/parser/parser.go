@@ -171,6 +171,9 @@ func (p *Parser) parseProgramBody() *ast.ProgramBody {
 			case *ast.ProcedureDeclaration:
 				print("whats up 2\n")
 				programBody.Declarations = append(programBody.Declarations, d)
+			case *ast.GlobalVariableDeclaration:
+				print("whats up 3\n")
+				programBody.Declarations = append(programBody.Declarations, d)
 			}
 		}
 		print("here hello ", p.currentToken.Literal, "\n")
@@ -263,11 +266,14 @@ func (p *Parser) parseDeclaration() interface{} {
 // parseGlobalVariableStatement parses a global variable statement
 func (p *Parser) parseGlobalVariableDeclaration() *ast.GlobalVariableDeclaration {
 	gdecl := &ast.GlobalVariableDeclaration{Token: p.currentToken}
+	print("hello under water ", p.currentToken.Literal, "\n")
 
 	if !p.expectPeek(token.VARIABLE) {
 		return nil
 	}
 	gdecl.VariableDeclaration = p.parseVariableDeclaration()
+
+	print("gdecl", gdecl.String(), "\n")
 
 	return gdecl
 
@@ -880,6 +886,9 @@ func (p *Parser) parseProcedureBody() *ast.ProcedureBody {
 				procedureBody.Declarations = append(procedureBody.Declarations, d)
 			case *ast.ProcedureDeclaration:
 				print("whats up 4\n")
+				procedureBody.Declarations = append(procedureBody.Declarations, d)
+			case *ast.GlobalVariableDeclaration:
+				print("whats up 5\n")
 				procedureBody.Declarations = append(procedureBody.Declarations, d)
 			}
 		}
