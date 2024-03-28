@@ -50,6 +50,8 @@ func Start(in io.Reader, out io.Writer) {
 			continue
 		}
 
+		compiler.PrintSymbolTable(symbolTable)
+
 		io.WriteString(out, program.String())
 		io.WriteString(out, "\n")
 

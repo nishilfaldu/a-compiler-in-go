@@ -71,7 +71,7 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 	case *ast.Identifier:
 		symbol, ok := c.symbolTable.Resolve(node.Value)
-		PrintSymbolTable(c.symbolTable)
+		// PrintSymbolTable(c.symbolTable)
 		if !ok {
 			return fmt.Errorf("undefined variable %s", node.Value)
 		}
@@ -267,13 +267,13 @@ func (c *Compiler) Compile(node ast.Node) error {
 		if node.Name.Value != "" {
 			print("i executed\n")
 			c.symbolTable.DefineFunctionName(node.Name.Value)
-			s, ok := c.symbolTable.Resolve(node.Name.Value)
-			if !ok {
-				print(s.Name, " i executed too yayy\n")
-			}
+			// s, ok := c.symbolTable.Resolve(node.Name.Value)
+			// if !ok {
+			// 	print(s.Name, " i executed too yayy\n")
+			// }
 		}
 
-		PrintSymbolTable(c.symbolTable)
+		// PrintSymbolTable(c.symbolTable)
 
 		for _, param := range node.Parameters {
 			c.symbolTable.Define(param.Name.Value)
@@ -293,6 +293,8 @@ func (c *Compiler) Compile(node ast.Node) error {
 				return err
 			}
 		}
+
+		PrintSymbolTable(c.symbolTable)
 	}
 
 	return nil
@@ -300,6 +302,8 @@ func (c *Compiler) Compile(node ast.Node) error {
 }
 
 func (c *Compiler) enterScope() {
+	// 	c.symbolTable = NewEnclosedSymbolTable(c.symbolTable)
+	// c.symbolTable = c.symbolTable.NewChildSymbolTable()
 	c.symbolTable = NewEnclosedSymbolTable(c.symbolTable)
 }
 

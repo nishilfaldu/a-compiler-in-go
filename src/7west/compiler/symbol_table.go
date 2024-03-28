@@ -25,6 +25,8 @@ type SymbolTable struct {
 	numDefinitions int
 
 	FreeSymbols []Symbol
+	// slice to store child symbol tables representing nested scopes
+	// Children []*SymbolTable
 }
 
 func NewEnclosedSymbolTable(outer *SymbolTable) *SymbolTable {
@@ -50,11 +52,15 @@ func (s *SymbolTable) Define(name string) Symbol {
 	return symbol
 }
 
+// func (s *SymbolTable) NewChildSymbolTable() *SymbolTable {
+// 	child := NewSymbolTable()
+// 	child.Outer = s
+// 	// s.Children = append(s.Children, child)
+// 	return child
+// }
+
 func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
 	obj, ok := s.store[name]
-	if name == "f" {
-		print(ok, " i detect\n")
-	}
 	if !ok && s.Outer != nil {
 		obj, ok = s.Outer.Resolve(name)
 		if !ok {
@@ -65,11 +71,20 @@ func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
 			return obj, ok
 		}
 
-		free := s.defineFree(obj)
-		return free, true
+		// free := s.defineFree(obj)
+		// return free, true
 	}
 	return obj, ok
 }
+
+// Resolve a symbol by recursively searching in the current and outer scopes
+// func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
+// 	obj, ok := s.store[name]
+// 	if !ok && s.Outer != nil {
+// 		obj, ok = s.Outer.Resolve(name)
+// 	}
+// 	return obj, ok
+// }
 
 func (s *SymbolTable) defineFree(original Symbol) Symbol {
 	s.FreeSymbols = append(s.FreeSymbols, original)
