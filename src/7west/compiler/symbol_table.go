@@ -16,6 +16,7 @@ type Symbol struct {
 	Name  string
 	Scope SymbolScope
 	Index int
+	Type  string
 }
 
 type SymbolTable struct {

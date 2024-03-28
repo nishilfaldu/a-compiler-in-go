@@ -9,6 +9,9 @@ type ObjectType string
 const (
 	STRING_OBJ  = "STRING"
 	INTEGER_OBJ = "INTEGER"
+	ERROR_OBJ   = "ERROR"
+	FLOAT_OBJ   = "FLOAT"
+	BOOLEAN_OBJ = "BOOLEAN"
 )
 
 type Object interface {
@@ -33,3 +36,24 @@ type Integer struct {
 
 func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
 func (i *Integer) Inspect() string  { return fmt.Sprintf("%d", i.Value) }
+
+type Error struct {
+	Message string
+}
+
+func (e *Error) Type() ObjectType { return ERROR_OBJ }
+func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
+
+type Float struct {
+	Value float64
+}
+
+func (f *Float) Type() ObjectType { return FLOAT_OBJ }
+func (f *Float) Inspect() string  { return fmt.Sprintf("%f", f.Value) }
+
+type Boolean struct {
+	Value bool
+}
+
+func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
+func (b *Boolean) Inspect() string  { return fmt.Sprintf("%t", b.Value) }
