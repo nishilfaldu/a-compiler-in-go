@@ -15,6 +15,7 @@ func main() {
 	}
 	// print a welcome message
 	fmt.Printf("Hello %s! This is the 7West programming language!\n", user.Username)
+	// util.Run("/Users/happyhome/Desktop/a-compiler-in-go/tests/correct")
 	// start the REPL
 	repl.Start(os.Stdin, os.Stdout)
 }

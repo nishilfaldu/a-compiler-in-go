@@ -3,7 +3,6 @@ package repl
 import (
 	"a-compiler-in-go/src/7west/src/7west/compiler"
 	"a-compiler-in-go/src/7west/src/7west/lexer"
-	"a-compiler-in-go/src/7west/src/7west/object"
 	"a-compiler-in-go/src/7west/src/7west/parser"
 	"bufio"
 	"fmt"
@@ -14,11 +13,6 @@ const PROMPT = ">> "
 
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
-
-	symbolTable := compiler.NewSymbolTable()
-	for i, v := range object.Builtins {
-		symbolTable.DefineBuiltin(i, v.Name)
-	}
 
 	for {
 		// print the prompt
@@ -43,8 +37,8 @@ func Start(in io.Reader, out io.Writer) {
 			continue
 		}
 
-		comp := compiler.NewWithState(symbolTable)
-		err := comp.Compile(program)
+		comp := compiler.NewWithState()
+		_, err := comp.Compile(program)
 		if err != nil {
 			fmt.Fprintf(out, "Woops! Compilation failed:\n %s\n", err)
 			continue

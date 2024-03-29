@@ -10,6 +10,10 @@ type Compiler struct {
 	symbolTable *SymbolTable
 }
 
+type CompileResult struct {
+	Type string
+}
+
 // TODO: store types in symbol table...maybe?
 
 func New() *Compiler {
@@ -24,24 +28,23 @@ func New() *Compiler {
 	}
 }
 
-func NewWithState(s *SymbolTable) *Compiler {
+func NewWithState() *Compiler {
 	compiler := New()
-	compiler.symbolTable = s
+	// compiler.symbolTable = s
 	return compiler
 }
 
-func (c *Compiler) Compile(node ast.Node) error {
-	print(node.String(), " in Compile\n")
+func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 	switch node := node.(type) {
 	case *ast.Program:
-		err := c.Compile(node.Header)
+		_, err := c.Compile(node.Header)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
 
-		err = c.Compile(node.Body)
+		_, err = c.Compile(node.Body)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
 
 	case *ast.ProgramHeader:
@@ -51,163 +54,170 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 	case *ast.ProgramBody:
 		for _, decl := range node.Declarations {
-			err := c.Compile(decl)
+			_, err := c.Compile(decl)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 		}
 
 		for _, stmt := range node.Statements {
-			err := c.Compile(stmt)
+			_, err := c.Compile(stmt)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 		}
 
 	case *ast.VariableDeclaration:
-		symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name)
+		if node.Type.Array != nil {
+			// Handle array declaration
+			// First, compile the inner variable declaration
+			// Then, define the symbol in the symbol table as an array
+			symbol := c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value)
+			print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
+		} else {
+			// Handle variable declaration
+			// First, compile the inner variable declaration
+			// Then, define the symbol in the symbol table as a variable
+			symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name)
+			print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
+		}
+		// symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name)
 		// err := c.Compile(node.)
-		print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
+		// print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
 
 	case *ast.GlobalVariableDeclaration:
 		// Handle global variable declaration
 		// First, compile the inner variable declaration
 		// Then, define the symbol in the symbol table as a global variable
-		print("something bro\n")
 		symbol := c.symbolTable.DefineGlobal(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name)
 		print(symbol.Name, symbol.Index, symbol.Scope, "in Global Variable Declaration case\n")
 
 	case *ast.Identifier:
 		symbol, ok := c.symbolTable.Resolve(node.Value)
-		// PrintSymbolTable(c.symbolTable)
 		if !ok {
-			return fmt.Errorf("undefined variable %s", node.Value)
+			return CompileResult{}, fmt.Errorf("undefined variable %s", node.Value)
 		}
 		print(symbol.Name, symbol.Index, symbol.Scope, "in Identifier case\n")
+		return CompileResult{Type: symbol.Type}, nil
 
 	case *ast.LoopStatement:
 		// Compile the initialization statement
-		err := c.Compile(node.InitStatement)
+		_, err := c.Compile(node.InitStatement)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
 		// Compile the loop condition
-		err_ := c.Compile(node.Condition)
+		_, err_ := c.Compile(node.Condition)
 		if err_ != nil {
-			return err_
+			return CompileResult{}, err_
 		}
 
 		// Compile the loop body
-		err = c.Compile(node.Body)
+		_, err = c.Compile(node.Body)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
 
 	case *ast.ForBlockStatement:
 		for _, stmt := range node.Statements {
-			err := c.Compile(stmt)
+			_, err := c.Compile(stmt)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 		}
 
 	case *ast.PrefixExpression:
-		err := c.Compile(node.Right)
+		_, err := c.Compile(node.Right)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
 
 	case *ast.InfixExpression:
 		if node.Operator == "<" {
-			err := c.Compile(node.Right)
+			_, err := c.Compile(node.Right)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 
-			err_ := c.Compile(node.Left)
+			_, err_ := c.Compile(node.Left)
 			if err_ != nil {
-				return err_
+				return CompileResult{}, err_
 			}
 		}
 
-		print("i executed lmaoo found it\n")
-
-		err := c.Compile(node.Left)
+		_, err := c.Compile(node.Left)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
 
-		err_ := c.Compile(node.Right)
+		_, err_ := c.Compile(node.Right)
 		if err_ != nil {
-			return err_
+			return CompileResult{}, err_
 		}
 
 	case *ast.IfExpression:
-		err := c.Compile(node.Condition)
+		_, err := c.Compile(node.Condition)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
-		err_ := c.Compile(node.Consequence)
+		_, err_ := c.Compile(node.Consequence)
 		if err_ != nil {
-			return err_
+			return CompileResult{}, err
 		}
 
 		if node.Alternative != nil {
-			err := c.Compile(node.Alternative)
+			_, err := c.Compile(node.Alternative)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 		}
 
 	case *ast.IfBlockStatement:
 		for _, stmt := range node.Statements {
-			err := c.Compile(stmt)
+			_, err := c.Compile(stmt)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 		}
 
 	// AssignmentStatement node and Destination node are merged in one case
 	case *ast.AssignmentStatement:
-		print(node.Value.String(), " in AssignmentStatement case 2\n")
-		err := c.Compile(node.Value)
+		fmt.Printf("Type of curr node: %T\n", node.Value)
+		cr, err := c.Compile(node.Value)
 		if err != nil {
-			print("here's the error\n")
-			return err
+			return CompileResult{}, err
 		}
 		// Compile the identifier part of the destination
 		symbol, ok := c.symbolTable.Resolve(node.Destination.Identifier.Value)
-
-		print(symbol.Name, symbol.Index, symbol.Scope, "in AssignmentStatement case\n")
+		print(symbol.Name, symbol.Index, symbol.Scope, "in AssignmentStatement case - print for usage\n")
 		if !ok {
-			// symbol = c.symbolTable.Define(node.Destination.Identifier.Value)
-			return fmt.Errorf("variable %s not defined", node.Destination.Identifier.Value)
+			return CompileResult{}, fmt.Errorf("variable %s not defined", node.Destination.Identifier.Value)
+		}
+
+		print(symbol.Type, cr.Type, "hello symbol type here\n")
+		// check if types match
+		if cr.Type != symbol.Type {
+			return CompileResult{}, fmt.Errorf("type mismatch: cannot assign %s to %s", cr.Type, symbol.Type)
 		}
 
 		// If the assignment has an index expression - array indexing - compile it first
 		if node.Destination.Expression != nil {
-			err := c.Compile(node.Destination.Expression)
+			_, err := c.Compile(node.Destination.Expression)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 		}
 
-		// Compile the identifier part of the assignment
-		// err = c.Compile(node.Destination.Identifier)
-		// if err != nil {
-		// 	return err
-		// }
-
 	case *ast.ExpressionStatement:
-		err := c.Compile(node.Expression)
+		_, err := c.Compile(node.Expression)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
 
 	case *ast.ReturnStatement:
-		err := c.Compile(node.ReturnValue)
+		_, err := c.Compile(node.ReturnValue)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
 
 	case *ast.StringLiteral:
@@ -216,7 +226,11 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 	case *ast.IntegerLiteral:
 		integer := &object.Integer{Value: node.Value}
-		print(integer)
+		return CompileResult{Type: string(integer.Type())}, nil
+
+	case *ast.FloatLiteral:
+		float := &object.Float{Value: node.Value}
+		return CompileResult{Type: string(float.Type())}, nil
 
 	case *ast.Boolean:
 		// TODO: not sure if this is required
@@ -224,44 +238,43 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 	case *ast.ArrayLiteral:
 		for _, el := range node.Elements {
-			err := c.Compile(el)
+			_, err := c.Compile(el)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 		}
 
 	case *ast.IndexExpression:
-		err := c.Compile(node.Left)
+		_, err := c.Compile(node.Left)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
-		err_ := c.Compile(node.Index)
+		_, err_ := c.Compile(node.Index)
 		if err_ != nil {
-			return err_
+			return CompileResult{}, err
 		}
 
 	case *ast.CallExpression:
-		print(node.Function.String(), " . ", node.String(), " in CallExpression case\n")
-		err := c.Compile(node.Function)
+		_, err := c.Compile(node.Function)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
 
 		for _, a := range node.Arguments {
-			err := c.Compile(a)
+			_, err := c.Compile(a)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 		}
 
 	case *ast.ProcedureDeclaration:
-		err := c.Compile(node.Header)
+		_, err := c.Compile(node.Header)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
-		err = c.Compile(node.Body)
+		_, err = c.Compile(node.Body)
 		if err != nil {
-			return err
+			return CompileResult{}, err
 		}
 
 		numLocals := c.symbolTable.numDefinitions
@@ -273,15 +286,8 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 		// define the function name and parameters in the symbol table
 		if node.Name.Value != "" {
-			print("i executed\n")
 			c.symbolTable.DefineFunctionName(node.Name.Value)
-			// s, ok := c.symbolTable.Resolve(node.Name.Value)
-			// if !ok {
-			// 	print(s.Name, " i executed too yayy\n")
-			// }
 		}
-
-		// PrintSymbolTable(c.symbolTable)
 
 		for _, param := range node.Parameters {
 			c.symbolTable.Define(param.Name.Value, param.Type.Name)
@@ -289,23 +295,23 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 	case *ast.ProcedureBody:
 		for _, decl := range node.Declarations {
-			err := c.Compile(decl)
+			_, err := c.Compile(decl)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 		}
 
 		for _, stmt := range node.Statements {
-			err := c.Compile(stmt)
+			_, err := c.Compile(stmt)
 			if err != nil {
-				return err
+				return CompileResult{}, err
 			}
 		}
 
 		PrintSymbolTable(c.symbolTable)
 	}
 
-	return nil
+	return CompileResult{}, nil
 
 }
 
@@ -317,4 +323,22 @@ func (c *Compiler) enterScope() {
 
 func (c *Compiler) leaveScope() {
 	c.symbolTable = c.symbolTable.Outer
+}
+
+// getTypeOfNode returns the type of the AST node.
+// This function assumes that the AST node has a Type field representing its type.
+func getTypeOfNode(node ast.Node) string {
+	switch node.(type) {
+	case *ast.IntegerLiteral:
+		return "integer"
+	case *ast.Boolean:
+		return "boolean"
+	case *ast.StringLiteral:
+		return "string"
+	case *ast.FloatLiteral:
+		return "float"
+	// Add cases for other types as needed...
+	default:
+		return "" // Return empty string if type is unknown
+	}
 }

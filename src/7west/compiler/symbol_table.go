@@ -1,6 +1,8 @@
 package compiler
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type SymbolScope string
 
@@ -13,10 +15,11 @@ const (
 )
 
 type Symbol struct {
-	Name  string
-	Scope SymbolScope
-	Index int
-	Type  string
+	Name      string
+	Scope     SymbolScope
+	Index     int
+	Type      string
+	ArraySize int64
 }
 
 type SymbolTable struct {
@@ -91,6 +94,13 @@ func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
 	return obj, ok
 }
 
+func (s *SymbolTable) DefineArray(name string, typeName string, size int64) Symbol {
+	symbol := Symbol{Name: name, Type: typeName, ArraySize: size, Index: s.numDefinitions}
+	s.store[name] = symbol
+	s.numDefinitions++
+	return symbol
+}
+
 // Resolve a symbol by recursively searching in the current and outer scopes
 // func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
 // 	obj, ok := s.store[name]
@@ -129,10 +139,11 @@ func PrintSymbolTable(s *SymbolTable) {
 	fmt.Println("=============")
 
 	// Print symbols defined in the current scope
+	// Print symbols defined in the current scope
 	fmt.Println("Current Scope:")
 	fmt.Println("-------------")
 	for name, sym := range s.store {
-		fmt.Printf("Name: %-10s Scope: %-10s Index: %-5d\n", name, sym.Scope, sym.Index)
+		fmt.Printf("Name: %-10s Type: %-10s Scope: %-10s Index: %-5d\n", name, sym.Type, sym.Scope, sym.Index)
 	}
 
 	// Print free symbols

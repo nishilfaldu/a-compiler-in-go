@@ -7,11 +7,11 @@ type BuiltinFunction func(args ...Object) Object
 type ObjectType string
 
 const (
-	STRING_OBJ  = "STRING"
-	INTEGER_OBJ = "INTEGER"
-	ERROR_OBJ   = "ERROR"
-	FLOAT_OBJ   = "FLOAT"
-	BOOLEAN_OBJ = "BOOLEAN"
+	STRING_OBJ  = "string"
+	INTEGER_OBJ = "integer"
+	ERROR_OBJ   = "error"
+	FLOAT_OBJ   = "float"
+	BOOLEAN_OBJ = "boolean"
 )
 
 type Object interface {
