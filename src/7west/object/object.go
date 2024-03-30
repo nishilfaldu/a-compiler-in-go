@@ -14,6 +14,13 @@ const (
 	BOOLEAN_OBJ = "boolean"
 )
 
+type CustomReturnType struct {
+	IntegerValue int64
+	FloatValue   float64
+	StringValue  string
+	BooleanValue bool
+}
+
 type Object interface {
 	Type() ObjectType
 	Inspect() string

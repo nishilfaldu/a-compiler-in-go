@@ -4,6 +4,7 @@ import (
 	"a-compiler-in-go/src/7west/src/7west/ast"
 	"a-compiler-in-go/src/7west/src/7west/object"
 	"fmt"
+	"sort"
 )
 
 type Compiler struct {
@@ -20,7 +21,18 @@ func New() *Compiler {
 	symbolTable := NewSymbolTable()
 
 	for i, v := range object.Builtins {
-		symbolTable.DefineBuiltin(i, v.Name)
+		// TODO: this will have to change to ReturnType - but for some reason Go typing is not working
+		if v.Name == "putbool" || v.Name == "putinteger" || v.Name == "putfloat" || v.Name == "putstring" || v.Name == "getbool" {
+			symbolTable.DefineBuiltin(i, v.Name, "bool")
+		} else if v.Name == "getinteger" {
+			symbolTable.DefineBuiltin(i, v.Name, "integer")
+		} else if v.Name == "getfloat" {
+			symbolTable.DefineBuiltin(i, v.Name, "float")
+		} else if v.Name == "getstring" {
+			symbolTable.DefineBuiltin(i, v.Name, "string")
+		} else {
+			symbolTable.DefineBuiltin(i, v.Name, "")
+		}
 	}
 
 	return &Compiler{
@@ -78,7 +90,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			// Handle variable declaration
 			// First, compile the inner variable declaration
 			// Then, define the symbol in the symbol table as a variable
-			symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name)
+			symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name, false)
 			print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
 		}
 		// symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name)
@@ -94,10 +106,20 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 
 	case *ast.Identifier:
 		symbol, ok := c.symbolTable.Resolve(node.Value)
+		print(symbol.Scope, symbol.Type, " in Identifier case i just need scope\n")
 		if !ok {
 			return CompileResult{}, fmt.Errorf("undefined variable %s", node.Value)
 		}
-		print(symbol.Name, symbol.Index, symbol.Scope, "in Identifier case\n")
+		if symbol.Scope == FunctionScope {
+			return CompileResult{Type: symbol.Type}, nil
+		}
+		if symbol.Scope == BuiltinScope {
+			return CompileResult{Type: symbol.Type}, nil
+		}
+		// if symbol.Scope == GlobalScope {
+		// 	return CompileResult{Type: symbol.Type}, nil
+		// }
+		print(symbol.Name, symbol.Type, symbol.Index, symbol.Scope, "in Identifier case\n")
 		return CompileResult{Type: symbol.Type}, nil
 
 	case *ast.LoopStatement:
@@ -144,15 +166,22 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				return CompileResult{}, err_
 			}
 		}
-
-		_, err := c.Compile(node.Left)
+		fmt.Printf("Type of curr node in infix - left: %T\n", node.Left)
+		cr, err := c.Compile(node.Left)
 		if err != nil {
 			return CompileResult{}, err
 		}
 
-		_, err_ := c.Compile(node.Right)
+		cr_, err_ := c.Compile(node.Right)
 		if err_ != nil {
 			return CompileResult{}, err_
+		}
+
+		// check if left and right types match
+		if cr.Type != cr_.Type {
+			return CompileResult{}, fmt.Errorf("type mismatch: cannot perform operation %s on %s and %s", node.Operator, cr.Type, cr_.Type)
+		} else {
+			return CompileResult{Type: cr.Type}, nil
 		}
 
 	case *ast.IfExpression:
@@ -182,7 +211,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 
 	// AssignmentStatement node and Destination node are merged in one case
 	case *ast.AssignmentStatement:
-		fmt.Printf("Type of curr node: %T\n", node.Value)
+		fmt.Printf("Type of curr node in assignment statement: %T\n", node.Value)
 		cr, err := c.Compile(node.Value)
 		if err != nil {
 			return CompileResult{}, err
@@ -215,16 +244,28 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 	case *ast.ReturnStatement:
-		_, err := c.Compile(node.ReturnValue)
+		fmt.Printf("Type of curr node in return: %T\n", node.ReturnValue)
+		cr, err := c.Compile(node.ReturnValue)
 		if err != nil {
 			return CompileResult{}, err
 		}
+
+		function, ok := c.symbolTable.getCurrentFunction()
+		if !ok {
+			return CompileResult{}, fmt.Errorf("return statement outside of function")
+		}
+		if cr.Type != function.ReturnType {
+			return CompileResult{}, fmt.Errorf("type mismatch for function %s: cannot return %s from function of type %s", function.Name, cr.Type, function.ReturnType)
+		}
+
+		return CompileResult{Type: cr.Type}, nil
 
 	case *ast.StringLiteral:
 		str := &object.String{Value: node.Value}
 		print(str)
 
 	case *ast.IntegerLiteral:
+		fmt.Printf("Type of curr node in integer literal: %T\n", node.Value)
 		integer := &object.Integer{Value: node.Value}
 		return CompileResult{Type: string(integer.Type())}, nil
 
@@ -255,17 +296,58 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 	case *ast.CallExpression:
-		_, err := c.Compile(node.Function)
+		fmt.Printf("Type of curr node in call expression: %T\n", node.Function)
+		cr, err := c.Compile(node.Function)
 		if err != nil {
 			return CompileResult{}, err
 		}
 
-		for _, a := range node.Arguments {
-			_, err := c.Compile(a)
+		currentFuncName := node.Function.String()
+		if builtinWithExists(currentFuncName) {
+			return c.compileBuiltInFunction(node)
+		}
+		// Check if the function is a built-in function
+		// if currentFuncName == "putinteger" {
+		// 	print("hehe\n")
+		// 	// Check if there are enough arguments
+		// 	if len(node.Arguments) != 1 {
+		// 		return CompileResult{}, fmt.Errorf("wrong number of arguments for putinteger: got %d, want 1", len(node.Arguments))
+		// 	} else {
+		// 		// Check if the argument is an integer
+		// 		cr, err := c.Compile(node.Arguments[0])
+		// 		if err != nil {
+		// 			return CompileResult{}, err
+		// 		}
+		// 		if cr.Type != "integer" {
+		// 			return CompileResult{}, fmt.Errorf("wrong type of argument for putinteger: got %s, want integer", cr.Type)
+		// 		}
+
+		// 		return CompileResult{Type: "bool"}, nil
+		// 	}
+		// }
+
+		paramLocalSymbols := getParamLocalSymbols(c.symbolTable, node.Function.String())
+		print(len(node.Arguments), " - len of arguments\n")
+		// Check if there are enough local symbols for the arguments
+		if len(node.Arguments) < len(paramLocalSymbols) {
+			return CompileResult{}, fmt.Errorf("not enough arguments provided for function call")
+		} else if len(node.Arguments) > len(paramLocalSymbols) {
+			return CompileResult{}, fmt.Errorf("too many arguments provided for function call")
+		}
+
+		for i, a := range node.Arguments {
+			fmt.Printf("Type of curr node in call expression - arguments: %T\n", a)
+			cr, err := c.Compile(a)
 			if err != nil {
 				return CompileResult{}, err
 			}
+
+			if cr.Type != paramLocalSymbols[i].Type {
+				return CompileResult{}, fmt.Errorf("type mismatch: cannot pass %s as argument %d of type %s", cr.Type, i, paramLocalSymbols[i].Type)
+			}
 		}
+
+		return CompileResult{Type: cr.Type}, nil
 
 	case *ast.ProcedureDeclaration:
 		_, err := c.Compile(node.Header)
@@ -279,6 +361,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 
 		numLocals := c.symbolTable.numDefinitions
 		print(numLocals)
+		// popping a function from the stack after return and its compilation
+		c.symbolTable.popFunction()
 		// c.leaveScope()
 
 	case *ast.ProcedureHeader:
@@ -286,11 +370,13 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 
 		// define the function name and parameters in the symbol table
 		if node.Name.Value != "" {
-			c.symbolTable.DefineFunctionName(node.Name.Value)
+			c.symbolTable.DefineFunctionName(node.Name.Value, node.TypeMark.Name)
+			// push function onto the stack for tracking return type
+			c.symbolTable.pushFunction(node.Name.Value, node.TypeMark.Name)
 		}
 
 		for _, param := range node.Parameters {
-			c.symbolTable.Define(param.Name.Value, param.Type.Name)
+			c.symbolTable.Define(param.Name.Value, param.Type.Name, true)
 		}
 
 	case *ast.ProcedureBody:
@@ -325,20 +411,98 @@ func (c *Compiler) leaveScope() {
 	c.symbolTable = c.symbolTable.Outer
 }
 
-// getTypeOfNode returns the type of the AST node.
-// This function assumes that the AST node has a Type field representing its type.
-func getTypeOfNode(node ast.Node) string {
-	switch node.(type) {
-	case *ast.IntegerLiteral:
-		return "integer"
-	case *ast.Boolean:
-		return "boolean"
-	case *ast.StringLiteral:
-		return "string"
-	case *ast.FloatLiteral:
-		return "float"
-	// Add cases for other types as needed...
+func sortParamLocalSymbols(localSymbols []Symbol) {
+	sort.Slice(localSymbols, func(i, j int) bool {
+		return localSymbols[i].Index < localSymbols[j].Index
+	})
+}
+
+func getParamLocalSymbols(symbolTable *SymbolTable, functionName string) []Symbol {
+	functionScope := findFunctionScope(symbolTable, functionName)
+	if functionScope == nil {
+		// Function not found, return empty slice
+		return []Symbol{}
+	}
+
+	localSymbols := make([]Symbol, 0)
+	for _, sym := range functionScope.store {
+		if sym.Scope == ParamLocalScope {
+			print(sym.Name + " haha\n")
+			localSymbols = append(localSymbols, sym)
+		}
+	}
+	sortParamLocalSymbols(localSymbols)
+
+	return localSymbols
+}
+
+// Find the symbol table containing the function definition
+func findFunctionScope(symbolTable *SymbolTable, functionName string) *SymbolTable {
+	current := symbolTable
+	for current != nil {
+		// Check if the current symbol table contains the function definition
+		if _, ok := current.store[functionName]; ok {
+			return current
+		}
+		// Move to the outer symbol table
+		current = current.Outer
+	}
+	// Function scope not found
+	return nil
+}
+
+func builtinWithExists(name string) bool {
+	for _, builtin := range object.Builtins {
+		if builtin.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Compiler) compileBuiltInFunction(node *ast.CallExpression) (CompileResult, error) {
+	switch currentFuncName := node.Function.String(); currentFuncName {
+	case "putinteger":
+		return c.checkEnoughArgumentsAndCompile(node, 1, "bool", "integer")
+	case "putfloat":
+		return c.checkEnoughArgumentsAndCompile(node, 1, "bool", "float")
+	case "putstring":
+		return c.checkEnoughArgumentsAndCompile(node, 1, "bool", "string")
+	case "putbool":
+		return c.checkEnoughArgumentsAndCompile(node, 1, "bool", "bool")
+	case "sqrt":
+		return c.checkEnoughArgumentsAndCompile(node, 1, "float", "integer")
+	case "getinteger":
+		return c.checkEnoughArgumentsAndCompile(node, 0, "integer", "")
+	case "getfloat":
+		return c.checkEnoughArgumentsAndCompile(node, 0, "float", "")
+	case "getstring":
+		return c.checkEnoughArgumentsAndCompile(node, 0, "string", "")
+	case "getbool":
+		return c.checkEnoughArgumentsAndCompile(node, 0, "bool", "")
 	default:
-		return "" // Return empty string if type is unknown
+		return CompileResult{}, fmt.Errorf("unknown built-in function: %s", currentFuncName)
+	}
+}
+
+func (c *Compiler) checkEnoughArgumentsAndCompile(node *ast.CallExpression, expectedArgs int, returnType string, argType string) (CompileResult, error) {
+	if len(node.Arguments) != expectedArgs {
+		return CompileResult{}, fmt.Errorf("wrong number of arguments for %s: got %d, want %d", node.Function.String(), len(node.Arguments), expectedArgs)
+	} else {
+		// Check if the argument is an integer
+		if expectedArgs == 1 {
+			cr, err := c.Compile(node.Arguments[0])
+			if err != nil {
+				return CompileResult{}, err
+			}
+			if cr.Type != argType {
+				return CompileResult{}, fmt.Errorf("wrong type of argument for %s: got %s, want %s", node.Function.String(), cr.Type, argType)
+			}
+			return CompileResult{Type: returnType}, nil
+		} else if expectedArgs == 0 {
+			return CompileResult{Type: returnType}, nil
+		}
+
+		return CompileResult{Type: returnType}, nil
 	}
 }

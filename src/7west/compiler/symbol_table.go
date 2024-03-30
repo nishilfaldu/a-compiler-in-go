@@ -7,12 +7,18 @@ import (
 type SymbolScope string
 
 const (
-	GlobalScope   SymbolScope = "GLOBAL"
-	LocalScope    SymbolScope = "LOCAL"
-	BuiltinScope  SymbolScope = "BUILTIN"
-	FreeScope     SymbolScope = "FREE"
-	FunctionScope SymbolScope = "FUNCTION"
+	GlobalScope     SymbolScope = "GLOBAL"
+	LocalScope      SymbolScope = "LOCAL"
+	ParamLocalScope SymbolScope = "PARAMLOCAL"
+	BuiltinScope    SymbolScope = "BUILTIN"
+	FreeScope       SymbolScope = "FREE"
+	FunctionScope   SymbolScope = "FUNCTION"
 )
+
+type FunctionType struct {
+	Name       string
+	ReturnType string
+}
 
 type Symbol struct {
 	Name      string
@@ -23,31 +29,57 @@ type Symbol struct {
 }
 
 type SymbolTable struct {
-	Outer *SymbolTable
-
+	// for bidirectional traversal - inner is helpful during call expression
+	Outer          *SymbolTable
+	Inner          *SymbolTable
 	store          map[string]Symbol
 	numDefinitions int
+	paramIndex     int
 
-	FreeSymbols []Symbol
-	// slice to store child symbol tables representing nested scopes
-	// Children []*SymbolTable
+	FreeSymbols       []Symbol
+	functionTypeStack []FunctionType // Stack to track function names and return types
 }
 
 func NewEnclosedSymbolTable(outer *SymbolTable) *SymbolTable {
 	symbolTable := NewSymbolTable()
 	symbolTable.Outer = outer
+	symbolTable.Outer.Inner = symbolTable
 	return symbolTable
 }
 
 func NewSymbolTable() *SymbolTable {
 	s := make(map[string]Symbol)
-	return &SymbolTable{store: s}
+	return &SymbolTable{store: s, paramIndex: 0}
 }
 
-func (s *SymbolTable) Define(name string, type_ string) Symbol {
+// func (s *SymbolTable) Define(name string, type_ string, param bool) Symbol {
+// 	var symbolIndex int
+// 	if param {
+// 		symbolIndex = s.paramIndex
+// 		s.paramIndex++
+// 	} else {
+// 		symbolIndex = s.numDefinitions
+// 		s.numDefinitions++
+// 	}
+// 	symbol := Symbol{Name: name, Index: symbolIndex, Type: type_}
+// 	if s.Outer == nil {
+// 		symbol.Scope = GlobalScope
+// 	} else if param {
+// 		symbol.Scope = ParamLocalScope
+// 	} else {
+// 		symbol.Scope = LocalScope
+// 	}
+// 	s.store[name] = symbol
+// 	s.numDefinitions++
+// 	return symbol
+// }
+
+func (s *SymbolTable) Define(name string, type_ string, param bool) Symbol {
 	symbol := Symbol{Name: name, Index: s.numDefinitions, Type: type_}
 	if s.Outer == nil {
 		symbol.Scope = GlobalScope
+	} else if param {
+		symbol.Scope = ParamLocalScope
 	} else {
 		symbol.Scope = LocalScope
 	}
@@ -120,17 +152,37 @@ func (s *SymbolTable) defineFree(original Symbol) Symbol {
 	return symbol
 }
 
-func (s *SymbolTable) DefineBuiltin(index int, name string) Symbol {
-	symbol := Symbol{Name: name, Index: index, Scope: BuiltinScope}
+func (s *SymbolTable) DefineBuiltin(index int, name string, returnType string) Symbol {
+	symbol := Symbol{Name: name, Index: index, Scope: BuiltinScope, Type: returnType}
 	s.store[name] = symbol
 	return symbol
 }
 
-func (s *SymbolTable) DefineFunctionName(name string) Symbol {
+func (s *SymbolTable) DefineFunctionName(name string, returnType string) Symbol {
 	print("name: ", name, "\n")
-	symbol := Symbol{Name: name, Index: 0, Scope: FunctionScope}
+	symbol := Symbol{Name: name, Index: 0, Scope: FunctionScope, Type: returnType}
 	s.store[name] = symbol
 	return symbol
+}
+
+// Function to push a new function type onto the stack
+func (s *SymbolTable) pushFunction(name, returnType string) {
+	s.functionTypeStack = append(s.functionTypeStack, FunctionType{Name: name, ReturnType: returnType})
+}
+
+// Function to pop the top function type from the stack
+func (s *SymbolTable) popFunction() {
+	if len(s.functionTypeStack) > 0 {
+		s.functionTypeStack = s.functionTypeStack[:len(s.functionTypeStack)-1]
+	}
+}
+
+// Function to get the top function type from the stack
+func (s *SymbolTable) getCurrentFunction() (FunctionType, bool) {
+	if len(s.functionTypeStack) > 0 {
+		return s.functionTypeStack[len(s.functionTypeStack)-1], true
+	}
+	return FunctionType{}, false
 }
 
 // PrintSymbolTable prints the contents of the symbol table along with labels.

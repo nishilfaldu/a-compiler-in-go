@@ -6,8 +6,9 @@ import (
 )
 
 var Builtins = []struct {
-	Name    string
-	Builtin *Builtin
+	Name       string
+	Builtin    *Builtin
+	returnType string
 }{
 	{
 		"puts",
@@ -19,6 +20,7 @@ var Builtins = []struct {
 			return nil
 		},
 		},
+		"nil",
 	},
 	{
 		"getbool",
@@ -28,6 +30,7 @@ var Builtins = []struct {
 			return &Boolean{Value: true}
 		},
 		},
+		"bool",
 	},
 	{
 		"getinteger",
@@ -37,6 +40,7 @@ var Builtins = []struct {
 			return &Integer{Value: 0} // Placeholder value
 		},
 		},
+		"integer",
 	},
 	{
 		"getfloat",
@@ -46,6 +50,7 @@ var Builtins = []struct {
 			return &Float{Value: 0.0} // Placeholder value
 		},
 		},
+		"float",
 	},
 	{
 		"getstring",
@@ -55,6 +60,7 @@ var Builtins = []struct {
 			return &String{Value: ""} // Placeholder value
 		},
 		},
+		"string",
 	},
 	{
 		"putbool",
@@ -64,6 +70,7 @@ var Builtins = []struct {
 			return &Boolean{Value: true}
 		},
 		},
+		"bool",
 	},
 	{
 		"putinteger",
@@ -73,6 +80,7 @@ var Builtins = []struct {
 			return &Boolean{Value: true}
 		},
 		},
+		"bool",
 	},
 	{
 		"putfloat",
@@ -82,6 +90,7 @@ var Builtins = []struct {
 			return &Boolean{Value: true}
 		},
 		},
+		"bool",
 	},
 	{
 		"putstring",
@@ -91,6 +100,7 @@ var Builtins = []struct {
 			return &Boolean{Value: true}
 		},
 		},
+		"bool",
 	},
 	{
 		"sqrt",
@@ -108,5 +118,6 @@ var Builtins = []struct {
 			return &Float{Value: math.Sqrt(float64(val))}
 		},
 		},
+		"integer",
 	},
 }
