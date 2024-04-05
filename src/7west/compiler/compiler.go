@@ -263,6 +263,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 	case *ast.StringLiteral:
 		str := &object.String{Value: node.Value}
 		print(str)
+		return CompileResult{Type: string(str.Type())}, nil
 
 	case *ast.IntegerLiteral:
 		fmt.Printf("Type of curr node in integer literal: %T\n", node.Value)
