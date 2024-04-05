@@ -15,7 +15,8 @@ type CompileResult struct {
 	Type string
 }
 
-// TODO: store types in symbol table...maybe?
+// TODO: check if the expression in the infix expression is a boolean or not.
+// TODO: Point 7 and 14 on the doc: implicit conversions of boolean and integer - implemented but check still...
 
 func New() *Compiler {
 	symbolTable := NewSymbolTable()
@@ -149,12 +150,17 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 	case *ast.PrefixExpression:
-		_, err := c.Compile(node.Right)
+		print(node.Operator, " - operator\n")
+		fmt.Printf("Type of curr node in prefix: %T\n", node.Right)
+		cr, err := c.Compile(node.Right)
 		if err != nil {
 			return CompileResult{}, err
 		}
 
+		return CompileResult{Type: cr.Type}, nil
+
 	case *ast.InfixExpression:
+		print(node.Operator, " - operator\n")
 		if node.Operator == "<" {
 			_, err := c.Compile(node.Right)
 			if err != nil {
@@ -185,6 +191,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 	case *ast.IfExpression:
+		print(node.Condition, " - condition\n")
 		_, err := c.Compile(node.Condition)
 		if err != nil {
 			return CompileResult{}, err
@@ -202,6 +209,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 	case *ast.IfBlockStatement:
+		print(len(node.Statements), " - len of statements\n")
 		for _, stmt := range node.Statements {
 			_, err := c.Compile(stmt)
 			if err != nil {
@@ -255,6 +263,9 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			return CompileResult{}, fmt.Errorf("return statement outside of function")
 		}
 		if cr.Type != function.ReturnType {
+			if typesCompatible(cr.Type, function.ReturnType) {
+				return CompileResult{Type: function.ReturnType}, nil
+			}
 			return CompileResult{}, fmt.Errorf("type mismatch for function %s: cannot return %s from function of type %s", function.Name, cr.Type, function.ReturnType)
 		}
 
@@ -275,8 +286,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		return CompileResult{Type: string(float.Type())}, nil
 
 	case *ast.Boolean:
-		// TODO: not sure if this is required
-		// boolean := &object.Boolean{Value: node.Value}
+		boolean := &object.Boolean{Value: node.Value}
+		return CompileResult{Type: string(boolean.Type())}, nil
 
 	case *ast.ArrayLiteral:
 		for _, el := range node.Elements {
@@ -307,25 +318,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if builtinWithExists(currentFuncName) {
 			return c.compileBuiltInFunction(node)
 		}
-		// Check if the function is a built-in function
-		// if currentFuncName == "putinteger" {
-		// 	print("hehe\n")
-		// 	// Check if there are enough arguments
-		// 	if len(node.Arguments) != 1 {
-		// 		return CompileResult{}, fmt.Errorf("wrong number of arguments for putinteger: got %d, want 1", len(node.Arguments))
-		// 	} else {
-		// 		// Check if the argument is an integer
-		// 		cr, err := c.Compile(node.Arguments[0])
-		// 		if err != nil {
-		// 			return CompileResult{}, err
-		// 		}
-		// 		if cr.Type != "integer" {
-		// 			return CompileResult{}, fmt.Errorf("wrong type of argument for putinteger: got %s, want integer", cr.Type)
-		// 		}
-
-		// 		return CompileResult{Type: "bool"}, nil
-		// 	}
-		// }
 
 		paramLocalSymbols := getParamLocalSymbols(c.symbolTable, node.Function.String())
 		print(len(node.Arguments), " - len of arguments\n")
@@ -506,4 +498,16 @@ func (c *Compiler) checkEnoughArgumentsAndCompile(node *ast.CallExpression, expe
 
 		return CompileResult{Type: returnType}, nil
 	}
+}
+
+func typesCompatible(type1 string, type2 string) bool {
+	// Check for compatibility between bool and integer types
+	if (type1 == "bool" && type2 == "integer") ||
+		(type1 == "integer" && type2 == "bool") {
+		return true
+	} else if (type1 == "integer" && type2 == "float") ||
+		(type1 == "float" && type2 == "integer") {
+		return true
+	}
+	return false
 }
