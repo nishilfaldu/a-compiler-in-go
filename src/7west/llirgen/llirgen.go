@@ -39,6 +39,10 @@ func LLVMIRFunctionDefinition(m *ir.Module, name string, params []compiler.Param
 	return funcDef
 }
 
+func NewLLVMIRFunctionBlock(fn *ir.Func, name string) *ir.Block {
+	return fn.NewBlock(name)
+}
+
 // helpers for condegen start here
 func GetLLVMIRType(type_ string) types.Type {
 	switch type_ {
