@@ -22,6 +22,11 @@ type Parameter struct {
 	Type string
 }
 
+type Argument struct {
+	Value string
+	Type  string
+}
+
 // TODO:  Fib(Sub(val)) - this is an interesting case and not sure if its working - depends on how many values are returned
 // TODO: Returning boolean expressions for functions with return type bool
 
@@ -615,6 +620,8 @@ func (c *Compiler) checkArguments(node *ast.CallExpression) (CompileResult, erro
 			return CompileResult{}, fmt.Errorf("type mismatch: cannot pass %s as argument %d of type %s", cr.Type, i, paramLocalSymbols[i].Type)
 		}
 	}
+
+	print(node.Arguments[0].String(), " - arguments lmao\n")
 
 	// All argument types match, return success
 	return CompileResult{Type: "success"}, nil
