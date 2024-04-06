@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 type Compiler struct {
@@ -16,11 +17,8 @@ type CompileResult struct {
 	Type string
 }
 
-// TODO: check if the expression in the infix expression is a boolean or not.
-// TODO: Point 7 and 14 on the doc: implicit conversions of boolean and integer - implemented but check still...
-// TODO: we do have to leave scope on return statement but before when program body starts, we have to go all the way into the innermost scope of symbol table
-
 // TODO:  Fib(Sub(val)) - this is an interesting case and not sure if its working - depends on how many values are returned
+// TODO: Returning boolean expressions for functions with return type bool
 
 func New() *Compiler {
 	symbolTable := NewSymbolTable()
@@ -47,7 +45,6 @@ func New() *Compiler {
 
 func NewWithState() *Compiler {
 	compiler := New()
-	// compiler.symbolTable = s
 	return compiler
 }
 
@@ -77,8 +74,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			}
 		}
 		print("before program body declarations\n")
-		// c.symbolTable = getInnermostSymbolTable(c.symbolTable)
-		// PrintSymbolTable(c.symbolTable)
+
 		print("after program body declarations\n")
 
 		for _, stmt := range node.Statements {
@@ -107,9 +103,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name, false)
 			print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
 		}
-		// symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name)
-		// err := c.Compile(node.)
-		// print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
 
 	case *ast.GlobalVariableDeclaration:
 		// Handle global variable declaration
@@ -160,6 +153,10 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		_, err_ := c.Compile(node.Condition)
 		if err_ != nil {
 			return CompileResult{}, err_
+		}
+		conditionExprString := node.Condition.String()
+		if !c.isBooleanExpression(conditionExprString) {
+			return CompileResult{}, fmt.Errorf("loop condition must be a boolean expression")
 		}
 
 		// Compile the loop body
@@ -223,6 +220,11 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if err != nil {
 			return CompileResult{}, err
 		}
+		conditionExprString := node.Condition.String()
+		if !c.isBooleanExpression(conditionExprString) {
+			return CompileResult{}, fmt.Errorf("if condition must be a boolean expression")
+		}
+
 		_, err_ := c.Compile(node.Consequence)
 		if err_ != nil {
 			return CompileResult{}, err
@@ -274,18 +276,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			print(symbol.Type, cr.Type, "hello symbol type here\n")
 		}
 
-		// check if types match
-		// detect if this [] exists in type
-		// subBrackets := symbol.Type[len(symbol.Type)-2:]
-		// sub := symbol.Type[0 : len(symbol.Type)-2] // remove the [] from the type string
-		// if subBrackets == "[]" {
-		// 	if cr.Type != sub {
-		// 		return CompileResult{}, fmt.Errorf("type mismatch in array: cannot assign %s to %s", cr.Type, sub)
-		// 	}
-		// } else {
-
-		// }
-
 	case *ast.ExpressionStatement:
 		_, err := c.Compile(node.Expression)
 		if err != nil {
@@ -300,7 +290,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 		print("now: \n")
-		// c.symbolTable.printFunctionDetails()
 		function, ok := c.symbolTable.getCurrentFunction()
 		print(function.Name, function.ReturnType, "in return statement printing function stuff\n")
 		if !ok {
@@ -313,8 +302,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			return CompileResult{}, fmt.Errorf("type mismatch for function %s: cannot return %s from function of type %s", function.Name, cr.Type, function.ReturnType)
 		}
 
-		// c.symbolTable.popFunction() // pop the function once you return
-		// c.leaveScope()
 		return CompileResult{Type: cr.Type}, nil
 
 	case *ast.StringLiteral:
@@ -359,7 +346,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			return CompileResult{}, fmt.Errorf("index must be an integer")
 		}
 		// also check if the index passed is less than the size of the array
-		// print("ran index\n")
 		symbol, ok := c.symbolTable.Resolve(node.Left.String())
 		if !ok {
 			return CompileResult{}, fmt.Errorf("undefined variable %s", node.Left.String())
@@ -393,7 +379,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				symbol, ok := c.symbolTable.ResolveInner(currentFuncName)
 				print("haha here i am\n")
 				if ok {
-					print("never run\n")
 					// functon found in inner scope - might be nested procedures
 					_, err := c.checkArguments(node)
 					if err != nil {
@@ -437,20 +422,12 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			return CompileResult{}, err
 		}
 
-		numLocals := c.symbolTable.numDefinitions
-		print(numLocals)
-		// popping a function from the stack after return and its compilation
-		// c.symbolTable.popFunction()
-
 	case *ast.ProcedureHeader:
 		c.enterScope()
 		print("XXX")
 		// define the function name and parameters in the symbol table
 		if node.Name.Value != "" {
 			c.symbolTable.DefineFunctionName(node.Name.Value, node.TypeMark.Name)
-			// push function onto the stack for tracking return type
-			// c.symbolTable.pushFunction(node.Name.Value, node.TypeMark.Name)
-			// c.symbolTable.printFunctionDetails()
 		}
 
 		for _, param := range node.Parameters {
@@ -489,7 +466,6 @@ func (c *Compiler) enterScope() {
 	} else {
 		c.symbolTable = c.symbolTable.Inner
 	}
-	// c.symbolTable = NewEnclosedSymbolTable(c.symbolTable)
 }
 
 func (c *Compiler) leaveScope() {
@@ -503,7 +479,6 @@ func sortParamLocalSymbols(localSymbols []Symbol) {
 }
 
 func getParamLocalSymbols(symbolTable *SymbolTable, functionName string) []Symbol {
-	// PrintSymbolTable(symbolTable)
 	print("\nafter getParams\n")
 	functionScope, funcIndex := findFunctionScope(symbolTable, functionName)
 	if functionScope == nil {
@@ -653,4 +628,40 @@ func typeofObject(variable interface{}) string {
 	default:
 		return "unknown"
 	}
+}
+
+// isBooleanExpression checks if the given expression is a boolean expression.
+// It returns true if the expression is boolean, otherwise false.
+func (c *Compiler) isBooleanExpression(expr string) bool {
+	print(expr, " - expr\n")
+	if expr == "true" || expr == "false" {
+		return true
+	}
+	// List of relational operators
+	relationalOperators := map[string]bool{
+		"<":  true,
+		">":  true,
+		"<=": true,
+		">=": true,
+		"==": true,
+		"!=": true,
+	}
+
+	// Check if expr is an identifier representing a boolean variable
+	if sym, ok := c.symbolTable.store[expr]; ok && sym.Type == "bool" {
+		return true
+	}
+
+	// tokenize the string
+	tokens := strings.Split(expr, " ")
+
+	// Check if a character is a relational operator in the expr string
+	for _, token := range tokens {
+		if relationalOperators[token] {
+			return true
+		}
+	}
+
+	// If no relational operators found, it's not a boolean expression
+	return false
 }

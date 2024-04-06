@@ -35,9 +35,6 @@ type SymbolTable struct {
 	store          map[string]Symbol
 	numDefinitions int
 	FuncIndex      int
-
-	FreeSymbols       []Symbol
-	functionTypeStack []FunctionType // Stack to track function names and return types
 }
 
 func NewEnclosedSymbolTable(outer *SymbolTable) *SymbolTable {
@@ -91,9 +88,6 @@ func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
 		if obj.Scope == GlobalScope || obj.Scope == BuiltinScope {
 			return obj, ok
 		}
-
-		// free := s.defineFree(obj)
-		// return free, true
 	}
 	return obj, ok
 }
@@ -124,25 +118,6 @@ func (s *SymbolTable) DefineArray(name string, typeName string, size int64, scop
 	return symbol
 }
 
-// Resolve a symbol by recursively searching in the current and outer scopes
-// func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
-// 	obj, ok := s.store[name]
-// 	if !ok && s.Outer != nil {
-// 		obj, ok = s.Outer.Resolve(name)
-// 	}
-// 	return obj, ok
-// }
-
-func (s *SymbolTable) defineFree(original Symbol) Symbol {
-	s.FreeSymbols = append(s.FreeSymbols, original)
-
-	symbol := Symbol{Name: original.Name, Index: len(s.FreeSymbols) - 1}
-	symbol.Scope = FreeScope
-
-	s.store[original.Name] = symbol
-	return symbol
-}
-
 func (s *SymbolTable) DefineBuiltin(index int, name string, returnType string) Symbol {
 	symbol := Symbol{Name: name, Index: index, Scope: BuiltinScope, Type: returnType}
 	s.store[name] = symbol
@@ -157,25 +132,6 @@ func (s *SymbolTable) DefineFunctionName(name string, returnType string) Symbol 
 	return symbol
 }
 
-// Function to push a new function type onto the stack
-func (s *SymbolTable) pushFunction(name, returnType string) {
-	s.functionTypeStack = append(s.functionTypeStack, FunctionType{Name: name, ReturnType: returnType})
-}
-
-// Function to pop the top function type from the stack
-func (s *SymbolTable) popFunction() {
-	if len(s.functionTypeStack) > 0 {
-		s.functionTypeStack = s.functionTypeStack[:len(s.functionTypeStack)-1]
-	}
-}
-
-func (s *SymbolTable) printFunctionDetails() {
-	print(len(s.functionTypeStack), "length\n")
-	// for _, f := range s.functionTypeStack {
-	// 	fmt.Println(f.Name, f.ReturnType)
-	// }
-}
-
 func getInnermostSymbolTable(symbolTable *SymbolTable) *SymbolTable {
 	current := symbolTable
 	for current.Inner != nil {
@@ -184,14 +140,6 @@ func getInnermostSymbolTable(symbolTable *SymbolTable) *SymbolTable {
 	return current
 }
 
-// Function to get the top function type from the stack
-//
-//	func (s *SymbolTable) getCurrentFunction() (FunctionType, bool) {
-//		if len(s.functionTypeStack) > 0 {
-//			return s.functionTypeStack[len(s.functionTypeStack)-1], true
-//		}
-//		return FunctionType{}, false
-//	}
 func (s *SymbolTable) getCurrentFunction() (FunctionType, bool) {
 	for name := range s.store {
 		if s.store[name].Scope == FunctionScope {
@@ -218,15 +166,6 @@ func PrintSymbolTable(s *SymbolTable) {
 	fmt.Println("-------------")
 	for name, sym := range s.store {
 		fmt.Printf("Name: %-10s Type: %-10s Scope: %-10s Index: %-5d ArraySize: %-5d\n", name, sym.Type, sym.Scope, sym.Index, sym.ArraySize)
-	}
-
-	// Print free symbols
-	if len(s.FreeSymbols) > 0 {
-		fmt.Println("\nFree Symbols:")
-		fmt.Println("-------------")
-		for _, sym := range s.FreeSymbols {
-			fmt.Printf("Name: %-10s Scope: %-10s Index: %-5d\n", sym.Name, sym.Scope, sym.Index)
-		}
 	}
 
 	// Recursively print symbols in outer scopes
