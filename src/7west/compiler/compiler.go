@@ -449,8 +449,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if node.Name.Value != "" {
 			c.symbolTable.DefineFunctionName(node.Name.Value, node.TypeMark.Name)
 			// push function onto the stack for tracking return type
-			c.symbolTable.pushFunction(node.Name.Value, node.TypeMark.Name)
-			c.symbolTable.printFunctionDetails()
+			// c.symbolTable.pushFunction(node.Name.Value, node.TypeMark.Name)
+			// c.symbolTable.printFunctionDetails()
 		}
 
 		for _, param := range node.Parameters {
@@ -505,7 +505,7 @@ func sortParamLocalSymbols(localSymbols []Symbol) {
 func getParamLocalSymbols(symbolTable *SymbolTable, functionName string) []Symbol {
 	// PrintSymbolTable(symbolTable)
 	print("\nafter getParams\n")
-	functionScope := findFunctionScope(symbolTable, functionName)
+	functionScope, funcIndex := findFunctionScope(symbolTable, functionName)
 	if functionScope == nil {
 		// Function not found, return empty slice
 		return []Symbol{}
@@ -513,7 +513,7 @@ func getParamLocalSymbols(symbolTable *SymbolTable, functionName string) []Symbo
 
 	localSymbols := make([]Symbol, 0)
 	for _, sym := range functionScope.store {
-		if sym.Scope == ParamLocalScope {
+		if sym.Scope == ParamLocalScope && sym.Index == funcIndex {
 			print(sym.Name + " haha\n")
 			localSymbols = append(localSymbols, sym)
 		}
@@ -524,7 +524,7 @@ func getParamLocalSymbols(symbolTable *SymbolTable, functionName string) []Symbo
 }
 
 // Find the symbol table containing the function definition
-func findFunctionScope(symbolTable *SymbolTable, functionName string) *SymbolTable {
+func findFunctionScope(symbolTable *SymbolTable, functionName string) (*SymbolTable, int) {
 	current := symbolTable
 	print(functionName)
 	print("\nprinting current symbol table to detect loop\n")
@@ -533,13 +533,13 @@ func findFunctionScope(symbolTable *SymbolTable, functionName string) *SymbolTab
 		// Check if the current symbol table contains the function definition
 		if _, ok := current.store[functionName]; ok {
 			print(current.store[functionName].Name, " - function name\n")
-			return current
+			return current, current.store[functionName].Index
 		}
 		// Move to the inner symbol table
 		current = current.Inner
 	}
 	// Function scope not found
-	return nil
+	return nil, -1
 }
 
 func builtinWithExists(name string) bool {

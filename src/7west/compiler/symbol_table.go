@@ -34,7 +34,7 @@ type SymbolTable struct {
 	Inner          *SymbolTable
 	store          map[string]Symbol
 	numDefinitions int
-	paramIndex     int
+	FuncIndex      int
 
 	FreeSymbols       []Symbol
 	functionTypeStack []FunctionType // Stack to track function names and return types
@@ -49,30 +49,8 @@ func NewEnclosedSymbolTable(outer *SymbolTable) *SymbolTable {
 
 func NewSymbolTable() *SymbolTable {
 	s := make(map[string]Symbol)
-	return &SymbolTable{store: s, paramIndex: 0}
+	return &SymbolTable{store: s}
 }
-
-// func (s *SymbolTable) Define(name string, type_ string, param bool) Symbol {
-// 	var symbolIndex int
-// 	if param {
-// 		symbolIndex = s.paramIndex
-// 		s.paramIndex++
-// 	} else {
-// 		symbolIndex = s.numDefinitions
-// 		s.numDefinitions++
-// 	}
-// 	symbol := Symbol{Name: name, Index: symbolIndex, Type: type_}
-// 	if s.Outer == nil {
-// 		symbol.Scope = GlobalScope
-// 	} else if param {
-// 		symbol.Scope = ParamLocalScope
-// 	} else {
-// 		symbol.Scope = LocalScope
-// 	}
-// 	s.store[name] = symbol
-// 	s.numDefinitions++
-// 	return symbol
-// }
 
 func (s *SymbolTable) Define(name string, type_ string, param bool) Symbol {
 	symbol := Symbol{Name: name, Index: s.numDefinitions, Type: type_}
@@ -80,6 +58,7 @@ func (s *SymbolTable) Define(name string, type_ string, param bool) Symbol {
 		symbol.Scope = GlobalScope
 	} else if param {
 		symbol.Scope = ParamLocalScope
+		symbol.Index = s.FuncIndex
 	} else {
 		symbol.Scope = LocalScope
 	}
@@ -100,13 +79,6 @@ func (s *SymbolTable) DefineGlobal(name string, type_ string) Symbol {
 	s.numDefinitions++
 	return symbol
 }
-
-// func (s *SymbolTable) NewChildSymbolTable() *SymbolTable {
-// 	child := NewSymbolTable()
-// 	child.Outer = s
-// 	// s.Children = append(s.Children, child)
-// 	return child
-// }
 
 func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
 	obj, ok := s.store[name]
@@ -179,7 +151,8 @@ func (s *SymbolTable) DefineBuiltin(index int, name string, returnType string) S
 
 func (s *SymbolTable) DefineFunctionName(name string, returnType string) Symbol {
 	print("name: ", name, "\n")
-	symbol := Symbol{Name: name, Index: 0, Scope: FunctionScope, Type: returnType}
+	s.FuncIndex++
+	symbol := Symbol{Name: name, Index: s.FuncIndex, Scope: FunctionScope, Type: returnType}
 	s.store[name] = symbol
 	return symbol
 }
