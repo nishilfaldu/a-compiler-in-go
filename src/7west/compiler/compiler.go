@@ -5,6 +5,7 @@ import (
 	"a-compiler-in-go/src/7west/src/7west/object"
 	"fmt"
 	"sort"
+	"strconv"
 )
 
 type Compiler struct {
@@ -17,6 +18,9 @@ type CompileResult struct {
 
 // TODO: check if the expression in the infix expression is a boolean or not.
 // TODO: Point 7 and 14 on the doc: implicit conversions of boolean and integer - implemented but check still...
+// TODO: we do have to leave scope on return statement but before when program body starts, we have to go all the way into the innermost scope of symbol table
+
+// TODO:  Fib(Sub(val)) - this is an interesting case and not sure if its working - depends on how many values are returned
 
 func New() *Compiler {
 	symbolTable := NewSymbolTable()
@@ -72,6 +76,10 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				return CompileResult{}, err
 			}
 		}
+		print("before program body declarations\n")
+		// c.symbolTable = getInnermostSymbolTable(c.symbolTable)
+		// PrintSymbolTable(c.symbolTable)
+		print("after program body declarations\n")
 
 		for _, stmt := range node.Statements {
 			_, err := c.Compile(stmt)
@@ -82,11 +90,16 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 
 	case *ast.VariableDeclaration:
 		if node.Type.Array != nil {
+			print("did you run array - in variable\n")
 			// Handle array declaration
 			// First, compile the inner variable declaration
 			// Then, define the symbol in the symbol table as an array
-			symbol := c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value)
-			print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
+			if c.symbolTable.IsGlobalScope() {
+				c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, GlobalScope)
+			} else {
+				symbol := c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, LocalScope)
+				print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
+			}
 		} else {
 			// Handle variable declaration
 			// First, compile the inner variable declaration
@@ -102,8 +115,22 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		// Handle global variable declaration
 		// First, compile the inner variable declaration
 		// Then, define the symbol in the symbol table as a global variable
-		symbol := c.symbolTable.DefineGlobal(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name)
-		print(symbol.Name, symbol.Index, symbol.Scope, "in Global Variable Declaration case\n")
+		if node.VariableDeclaration.Type.Array != nil {
+			print("did you run array - in global\n")
+			// check if the array index value is less than or equal to 0
+			if node.VariableDeclaration.Type.Array.Value <= 0 {
+				return CompileResult{}, fmt.Errorf("array size must be greater than 0")
+			}
+			if typeofObject(node.VariableDeclaration.Type.Array.Value) != "int" {
+				return CompileResult{}, fmt.Errorf("array size must be an integer")
+			}
+			symbol := c.symbolTable.DefineArray(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name+"[]", node.VariableDeclaration.Type.Array.Value, GlobalScope)
+			print(symbol.Name, symbol.Index, symbol.Scope, "1 - in Global Variable Declaration case\n")
+		} else {
+			symbol := c.symbolTable.DefineGlobal(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name)
+			print(symbol.Name, symbol.Index, symbol.Scope, "2 - in Global Variable Declaration case\n")
+
+		}
 
 	case *ast.Identifier:
 		symbol, ok := c.symbolTable.Resolve(node.Value)
@@ -177,7 +204,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if err != nil {
 			return CompileResult{}, err
 		}
-
+		fmt.Printf("Type of curr node in infix - right: %T\n", node.Right)
 		cr_, err_ := c.Compile(node.Right)
 		if err_ != nil {
 			return CompileResult{}, err_
@@ -224,26 +251,40 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if err != nil {
 			return CompileResult{}, err
 		}
-		// Compile the identifier part of the destination
-		symbol, ok := c.symbolTable.Resolve(node.Destination.Identifier.Value)
-		print(symbol.Name, symbol.Index, symbol.Scope, "in AssignmentStatement case - print for usage\n")
-		if !ok {
-			return CompileResult{}, fmt.Errorf("variable %s not defined", node.Destination.Identifier.Value)
-		}
-
-		print(symbol.Type, cr.Type, "hello symbol type here\n")
-		// check if types match
-		if cr.Type != symbol.Type {
-			return CompileResult{}, fmt.Errorf("type mismatch: cannot assign %s to %s", cr.Type, symbol.Type)
-		}
 
 		// If the assignment has an index expression - array indexing - compile it first
 		if node.Destination.Expression != nil {
-			_, err := c.Compile(node.Destination.Expression)
+			cr_, err_ := c.Compile(node.Destination.Expression)
 			if err != nil {
-				return CompileResult{}, err
+				return CompileResult{}, err_
 			}
+			if cr_.Type != cr.Type {
+				return CompileResult{}, fmt.Errorf("type mismatch in array assignment: cannot assign %s to %s", cr.Type, cr_.Type)
+			}
+		} else {
+			// Compile the identifier part of the destination
+			symbol, ok := c.symbolTable.Resolve(node.Destination.Identifier.Value)
+			print(symbol.Name, symbol.Index, symbol.Scope, "in AssignmentStatement case - print for usage\n")
+			if !ok {
+				return CompileResult{}, fmt.Errorf("variable %s not defined", node.Destination.Identifier.Value)
+			}
+			if cr.Type != symbol.Type {
+				return CompileResult{}, fmt.Errorf("type mismatch: cannot assign %s to %s", cr.Type, symbol.Type)
+			}
+			print(symbol.Type, cr.Type, "hello symbol type here\n")
 		}
+
+		// check if types match
+		// detect if this [] exists in type
+		// subBrackets := symbol.Type[len(symbol.Type)-2:]
+		// sub := symbol.Type[0 : len(symbol.Type)-2] // remove the [] from the type string
+		// if subBrackets == "[]" {
+		// 	if cr.Type != sub {
+		// 		return CompileResult{}, fmt.Errorf("type mismatch in array: cannot assign %s to %s", cr.Type, sub)
+		// 	}
+		// } else {
+
+		// }
 
 	case *ast.ExpressionStatement:
 		_, err := c.Compile(node.Expression)
@@ -258,7 +299,10 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			return CompileResult{}, err
 		}
 
+		print("now: \n")
+		// c.symbolTable.printFunctionDetails()
 		function, ok := c.symbolTable.getCurrentFunction()
+		print(function.Name, function.ReturnType, "in return statement printing function stuff\n")
 		if !ok {
 			return CompileResult{}, fmt.Errorf("return statement outside of function")
 		}
@@ -269,6 +313,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			return CompileResult{}, fmt.Errorf("type mismatch for function %s: cannot return %s from function of type %s", function.Name, cr.Type, function.ReturnType)
 		}
 
+		// c.symbolTable.popFunction() // pop the function once you return
+		// c.leaveScope()
 		return CompileResult{Type: cr.Type}, nil
 
 	case *ast.StringLiteral:
@@ -298,49 +344,88 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 	case *ast.IndexExpression:
-		_, err := c.Compile(node.Left)
+		print("ran index\n")
+		// left is the identifier
+		cr, err := c.Compile(node.Left)
 		if err != nil {
 			return CompileResult{}, err
 		}
-		_, err_ := c.Compile(node.Index)
+		// right is the index ryan[3] - where right is 3
+		cr_, err_ := c.Compile(node.Index)
 		if err_ != nil {
 			return CompileResult{}, err
 		}
+		if cr_.Type != "integer" {
+			return CompileResult{}, fmt.Errorf("index must be an integer")
+		}
+		// also check if the index passed is less than the size of the array
+		// print("ran index\n")
+		symbol, ok := c.symbolTable.Resolve(node.Left.String())
+		if !ok {
+			return CompileResult{}, fmt.Errorf("undefined variable %s", node.Left.String())
+		} else {
+			if symbol.Type != "integer[]" {
+				return CompileResult{}, fmt.Errorf("variable %s is not an array", node.Left.String())
+			} else {
+				// check if the index is within the bounds of the array
+				int1, err := strconv.ParseInt(node.Index.String(), 6, 12)
+				if err != nil {
+					return CompileResult{}, fmt.Errorf("there was an error parsing the index to int: %w", err)
+				}
+				if int1 >= symbol.ArraySize {
+					return CompileResult{}, fmt.Errorf("index out of bounds")
+				}
+			}
+		}
+		sub := cr.Type[0 : len(cr.Type)-2] // remove the [] from the type string
+		return CompileResult{Type: sub}, nil
 
 	case *ast.CallExpression:
 		fmt.Printf("Type of curr node in call expression: %T\n", node.Function)
-		cr, err := c.Compile(node.Function)
-		if err != nil {
-			return CompileResult{}, err
-		}
 
-		currentFuncName := node.Function.String()
-		if builtinWithExists(currentFuncName) {
-			return c.compileBuiltInFunction(node)
-		}
-
-		paramLocalSymbols := getParamLocalSymbols(c.symbolTable, node.Function.String())
-		print(len(node.Arguments), " - len of arguments\n")
-		// Check if there are enough local symbols for the arguments
-		if len(node.Arguments) < len(paramLocalSymbols) {
-			return CompileResult{}, fmt.Errorf("not enough arguments provided for function call")
-		} else if len(node.Arguments) > len(paramLocalSymbols) {
-			return CompileResult{}, fmt.Errorf("too many arguments provided for function call")
-		}
-
-		for i, a := range node.Arguments {
-			fmt.Printf("Type of curr node in call expression - arguments: %T\n", a)
-			cr, err := c.Compile(a)
+		if _, ok := node.Function.(*ast.Identifier); ok {
+			// node.Function is of type *ast.Identifier
+			currentFuncName := node.Function.String()
+			if builtinWithExists(currentFuncName) {
+				return c.compileBuiltInFunction(node)
+			} else {
+				// Try to resolve the function name in inner scopes
+				symbol, ok := c.symbolTable.ResolveInner(currentFuncName)
+				print("haha here i am\n")
+				if ok {
+					print("never run\n")
+					// functon found in inner scope - might be nested procedures
+					_, err := c.checkArguments(node)
+					if err != nil {
+						return CompileResult{}, err
+					}
+					return CompileResult{Type: symbol.Type}, nil
+				} else {
+					// function not found in inner scopes - might be a call expression in program body
+					symbol, ok := c.symbolTable.Resolve(currentFuncName)
+					if !ok {
+						return CompileResult{}, fmt.Errorf("undefined function %s", currentFuncName)
+					} else {
+						// function found in outer scope
+						_, err := c.checkArguments(node)
+						if err != nil {
+							return CompileResult{}, err
+						}
+						return CompileResult{Type: symbol.Type}, nil
+					}
+				}
+			}
+		} else {
+			// node.Function is not of type *ast.Identifier
+			_, err := c.Compile(node.Function)
 			if err != nil {
 				return CompileResult{}, err
 			}
-
-			if cr.Type != paramLocalSymbols[i].Type {
-				return CompileResult{}, fmt.Errorf("type mismatch: cannot pass %s as argument %d of type %s", cr.Type, i, paramLocalSymbols[i].Type)
+			_, err_ := c.checkArguments(node)
+			if err_ != nil {
+				return CompileResult{}, err_
 			}
 		}
-
-		return CompileResult{Type: cr.Type}, nil
 
 	case *ast.ProcedureDeclaration:
 		_, err := c.Compile(node.Header)
@@ -355,22 +440,24 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		numLocals := c.symbolTable.numDefinitions
 		print(numLocals)
 		// popping a function from the stack after return and its compilation
-		c.symbolTable.popFunction()
-		// c.leaveScope()
+		// c.symbolTable.popFunction()
 
 	case *ast.ProcedureHeader:
 		c.enterScope()
-
+		print("XXX")
 		// define the function name and parameters in the symbol table
 		if node.Name.Value != "" {
 			c.symbolTable.DefineFunctionName(node.Name.Value, node.TypeMark.Name)
 			// push function onto the stack for tracking return type
 			c.symbolTable.pushFunction(node.Name.Value, node.TypeMark.Name)
+			c.symbolTable.printFunctionDetails()
 		}
 
 		for _, param := range node.Parameters {
 			c.symbolTable.Define(param.Name.Value, param.Type.Name, true)
 		}
+		print("in procedure header after enter scope\n")
+		PrintSymbolTable(c.symbolTable)
 
 	case *ast.ProcedureBody:
 		for _, decl := range node.Declarations {
@@ -386,7 +473,9 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				return CompileResult{}, err
 			}
 		}
-
+		// leave scope after the body of the procedure
+		c.leaveScope()
+		print("after procedure body leave scope\n")
 		PrintSymbolTable(c.symbolTable)
 	}
 
@@ -395,9 +484,12 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 }
 
 func (c *Compiler) enterScope() {
-	// 	c.symbolTable = NewEnclosedSymbolTable(c.symbolTable)
-	// c.symbolTable = c.symbolTable.NewChildSymbolTable()
-	c.symbolTable = NewEnclosedSymbolTable(c.symbolTable)
+	if c.symbolTable.Inner == nil {
+		c.symbolTable = NewEnclosedSymbolTable(c.symbolTable)
+	} else {
+		c.symbolTable = c.symbolTable.Inner
+	}
+	// c.symbolTable = NewEnclosedSymbolTable(c.symbolTable)
 }
 
 func (c *Compiler) leaveScope() {
@@ -411,6 +503,8 @@ func sortParamLocalSymbols(localSymbols []Symbol) {
 }
 
 func getParamLocalSymbols(symbolTable *SymbolTable, functionName string) []Symbol {
+	// PrintSymbolTable(symbolTable)
+	print("\nafter getParams\n")
 	functionScope := findFunctionScope(symbolTable, functionName)
 	if functionScope == nil {
 		// Function not found, return empty slice
@@ -432,13 +526,17 @@ func getParamLocalSymbols(symbolTable *SymbolTable, functionName string) []Symbo
 // Find the symbol table containing the function definition
 func findFunctionScope(symbolTable *SymbolTable, functionName string) *SymbolTable {
 	current := symbolTable
+	print(functionName)
+	print("\nprinting current symbol table to detect loop\n")
+	PrintSymbolTable(current)
 	for current != nil {
 		// Check if the current symbol table contains the function definition
 		if _, ok := current.store[functionName]; ok {
+			print(current.store[functionName].Name, " - function name\n")
 			return current
 		}
-		// Move to the outer symbol table
-		current = current.Outer
+		// Move to the inner symbol table
+		current = current.Inner
 	}
 	// Function scope not found
 	return nil
@@ -510,4 +608,49 @@ func typesCompatible(type1 string, type2 string) bool {
 		return true
 	}
 	return false
+}
+
+func (c *Compiler) checkArguments(node *ast.CallExpression) (CompileResult, error) {
+	// Get local symbols for the function being called
+	paramLocalSymbols := getParamLocalSymbols(c.symbolTable, node.Function.String())
+	print(len(paramLocalSymbols), " - paramLocalSymbols\n")
+	print(node.Function.String(), "here in checkArgs\n")
+	print(len(node.Arguments), " - len of arguments\n")
+	// Check if the number of arguments matches the number of local symbols
+	if len(node.Arguments) < len(paramLocalSymbols) {
+		return CompileResult{}, fmt.Errorf("not enough arguments provided for function call")
+	} else if len(node.Arguments) > len(paramLocalSymbols) {
+		return CompileResult{}, fmt.Errorf("too many arguments provided for function call")
+	}
+
+	// Check the type of each argument against the corresponding local symbol
+	for i, a := range node.Arguments {
+		fmt.Printf("Type of curr node in call expression - arguments: %T\n", a)
+		cr, err := c.Compile(a)
+		if err != nil {
+			return CompileResult{}, err
+		}
+
+		if cr.Type != paramLocalSymbols[i].Type {
+			return CompileResult{}, fmt.Errorf("type mismatch: cannot pass %s as argument %d of type %s", cr.Type, i, paramLocalSymbols[i].Type)
+		}
+	}
+
+	// All argument types match, return success
+	return CompileResult{Type: "success"}, nil
+}
+
+func typeofObject(variable interface{}) string {
+	switch variable.(type) {
+	case int, int64:
+		return "int"
+	case float32:
+		return "float32"
+	case bool:
+		return "boolean"
+	case string:
+		return "string"
+	default:
+		return "unknown"
+	}
 }

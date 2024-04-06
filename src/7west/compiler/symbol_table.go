@@ -126,8 +126,27 @@ func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
 	return obj, ok
 }
 
-func (s *SymbolTable) DefineArray(name string, typeName string, size int64) Symbol {
-	symbol := Symbol{Name: name, Type: typeName, ArraySize: size, Index: s.numDefinitions}
+func (s *SymbolTable) ResolveInner(name string) (Symbol, bool) {
+	// Try to resolve the symbol in the current scope
+	obj, ok := s.store[name]
+	if ok {
+		return obj, true
+	}
+
+	// If not found in the current scope, try inner scopes recursively
+	if s.Inner != nil {
+		obj, ok := s.Inner.ResolveInner(name)
+		if ok {
+			return obj, true
+		}
+	}
+
+	// If not found in any inner scopes, return false
+	return Symbol{}, false
+}
+
+func (s *SymbolTable) DefineArray(name string, typeName string, size int64, scope SymbolScope) Symbol {
+	symbol := Symbol{Name: name, Type: typeName, ArraySize: size, Index: s.numDefinitions, Scope: scope}
 	s.store[name] = symbol
 	s.numDefinitions++
 	return symbol
@@ -177,12 +196,42 @@ func (s *SymbolTable) popFunction() {
 	}
 }
 
-// Function to get the top function type from the stack
-func (s *SymbolTable) getCurrentFunction() (FunctionType, bool) {
-	if len(s.functionTypeStack) > 0 {
-		return s.functionTypeStack[len(s.functionTypeStack)-1], true
+func (s *SymbolTable) printFunctionDetails() {
+	print(len(s.functionTypeStack), "length\n")
+	// for _, f := range s.functionTypeStack {
+	// 	fmt.Println(f.Name, f.ReturnType)
+	// }
+}
+
+func getInnermostSymbolTable(symbolTable *SymbolTable) *SymbolTable {
+	current := symbolTable
+	for current.Inner != nil {
+		current = current.Inner
 	}
+	return current
+}
+
+// Function to get the top function type from the stack
+//
+//	func (s *SymbolTable) getCurrentFunction() (FunctionType, bool) {
+//		if len(s.functionTypeStack) > 0 {
+//			return s.functionTypeStack[len(s.functionTypeStack)-1], true
+//		}
+//		return FunctionType{}, false
+//	}
+func (s *SymbolTable) getCurrentFunction() (FunctionType, bool) {
+	for name := range s.store {
+		if s.store[name].Scope == FunctionScope {
+			return FunctionType{Name: name, ReturnType: s.store[name].Type}, true
+		}
+	}
+	// If no function name found
 	return FunctionType{}, false
+}
+
+// Function to check if the current scope is global
+func (s *SymbolTable) IsGlobalScope() bool {
+	return s.Outer == nil
 }
 
 // PrintSymbolTable prints the contents of the symbol table along with labels.
@@ -195,7 +244,7 @@ func PrintSymbolTable(s *SymbolTable) {
 	fmt.Println("Current Scope:")
 	fmt.Println("-------------")
 	for name, sym := range s.store {
-		fmt.Printf("Name: %-10s Type: %-10s Scope: %-10s Index: %-5d\n", name, sym.Type, sym.Scope, sym.Index)
+		fmt.Printf("Name: %-10s Type: %-10s Scope: %-10s Index: %-5d ArraySize: %-5d\n", name, sym.Type, sym.Scope, sym.Index, sym.ArraySize)
 	}
 
 	// Print free symbols
