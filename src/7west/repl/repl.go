@@ -1,9 +1,11 @@
 package repl
 
 import (
+	"a-compiler-in-go/src/7west/src/7west/compiler"
 	"a-compiler-in-go/src/7west/src/7west/lexer"
 	"a-compiler-in-go/src/7west/src/7west/parser"
 	"bufio"
+	"fmt"
 	"io"
 )
 
@@ -28,11 +30,21 @@ func Start(in io.Reader, out io.Writer) {
 		p := parser.New(l)
 
 		program := p.ParseProgram()
+
 		// check for errors
 		if len(p.Errors()) != 0 {
 			printParserErrors(out, p.Errors())
 			continue
 		}
+
+		comp := compiler.NewWithState()
+		_, err := comp.Compile(program)
+		if err != nil {
+			fmt.Fprintf(out, "Woops! Compilation failed:\n %s\n", err)
+			continue
+		}
+
+		// compiler.PrintSymbolTable(symbolTable)
 
 		io.WriteString(out, program.String())
 		io.WriteString(out, "\n")

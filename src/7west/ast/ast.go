@@ -33,6 +33,16 @@ type Program struct {
 	Body   *ProgramBody
 }
 
+func (p *Program) TokenLiteral() string {
+	if p.Header != nil {
+		return p.Header.TokenLiteral()
+	} else if p.Body != nil {
+		return p.Body.TokenLiteral()
+	} else {
+		return ""
+	}
+}
+
 // String returns a string representation of the Program node and all its children
 func (p *Program) String() string {
 	var out bytes.Buffer
@@ -278,7 +288,7 @@ func (fl *FloatLiteral) TokenLiteral() string { return fl.Token.Literal }
 func (fl *FloatLiteral) String() string       { return fl.Token.Literal }
 
 type StringLiteral struct {
-	Token token.Token
+	Token token.Token // the token.STRING token
 	Value string
 }
 
@@ -394,10 +404,10 @@ func (bs *ForBlockStatement) String() string {
 }
 
 type LoopStatement struct {
-	Token         token.Token         // the for token
-	InitStatement AssignmentStatement // the initialization statement
-	Condition     Expression          // the loop condition expression
-	Body          *ForBlockStatement  // the loop body
+	Token         token.Token          // the for token
+	InitStatement *AssignmentStatement // the initialization statement
+	Condition     Expression           // the loop condition expression
+	Body          *ForBlockStatement   // the loop body
 }
 
 func (bs *LoopStatement) statementNode() {}
