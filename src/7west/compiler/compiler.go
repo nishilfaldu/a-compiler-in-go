@@ -17,6 +17,11 @@ type CompileResult struct {
 	Type string
 }
 
+type Parameter struct {
+	Name string
+	Type string
+}
+
 // TODO:  Fib(Sub(val)) - this is an interesting case and not sure if its working - depends on how many values are returned
 // TODO: Returning boolean expressions for functions with return type bool
 
