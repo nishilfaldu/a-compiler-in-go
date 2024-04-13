@@ -102,9 +102,15 @@ func main() {
 	println(m.String())
 }
 
+// TODO: maybe a separate function for codegen of Arrays
+
 // TODO: a new block will be needed for the general program - this will be the entry block ("main")
-func LLVMIRGlobalVariable(m *ir.Module, name string, value int64) *ir.Global {
-	global := m.NewGlobalDef(name, constant.NewInt(types.I64, value))
+// removed value as a parameters
+func LLVMIRGlobalVariable(m *ir.Module, name string, type_ string) *ir.Global {
+	global := m.NewGlobalDef(name,
+		// constant.NewInt(types.I64, value)
+		GetLLVMIRConstant(type_),
+	)
 	return global
 }
 
@@ -114,6 +120,17 @@ func LLVMIRModule() *ir.Module {
 
 func LLVMIRFuncMain(m *ir.Module) *ir.Func {
 	return m.NewFunc("main", types.I64)
+}
+
+func LLVMIRAlloca(block *ir.Block, name string, typ string) *ir.InstAlloca {
+	// typ types.Type
+	alloca := block.NewAlloca(GetLLVMIRType(typ))
+	alloca.SetName(name)
+	return alloca
+}
+
+func LLVMIRStore(block *ir.Block, value value.Value, ptr *ir.InstAlloca) *ir.InstStore {
+	return block.NewStore(value, ptr)
 }
 
 func LLVMIRFunctionDefinition(m *ir.Module, name string, returnType string, params []*ast.VariableDeclaration) *ir.Func {
@@ -229,6 +246,8 @@ func GetLLVMIRType(type_ string) types.Type {
 	case "string":
 		// String = array of 8 bit ints
 		return types.NewArray(8, types.I8)
+	case "integer[]":
+		return types.NewArray(8, types.I64)
 	case "void":
 		return types.Void
 	default:
@@ -237,13 +256,21 @@ func GetLLVMIRType(type_ string) types.Type {
 	}
 }
 
-func GetLLVMIRConstant(type_ string, value interface{}) constant.Constant {
+func GetLLVMIRConstant(type_ string) constant.Constant {
+	// value interface{}
 	switch type_ {
 	case "integer":
-		return constant.NewInt(types.I64, value.(int64))
+		return constant.NewInt(types.I64, 0)
 	case "float":
-		return constant.NewFloat(types.Float, value.(float64))
+		return constant.NewFloat(types.Float, 0.0)
+	case "bool":
+		return constant.NewInt(types.I1, 1)
+	case "string":
+		return constant.NewCharArrayFromString("")
+	case "integer[]":
+		return constant.NewArray(&types.ArrayType{TypeName: types.I64.TypeName}, constant.NewInt(types.I64, 0))
 	default:
+		panic("Invalid type name:" + type_)
 		return nil // Default to nil if not specified in compiler.
 	}
 }

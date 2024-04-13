@@ -10,6 +10,9 @@ import (
 	"strings"
 
 	"github.com/llir/llvm/ir"
+	"github.com/llir/llvm/ir/constant"
+	"github.com/llir/llvm/ir/types"
+	"github.com/llir/llvm/ir/value"
 )
 
 type FuncBlock struct {
@@ -25,6 +28,7 @@ type Compiler struct {
 
 type CompileResult struct {
 	Type string
+	Val  value.Value
 }
 
 type Parameter struct {
@@ -41,8 +45,6 @@ type Argument struct {
 // TODO: Returning boolean expressions for functions with return type bool
 
 // TODO: avoided array as a function parameter for now
-
-var funcDefs map[string]*ir.Func
 
 func New() *Compiler {
 	symbolTable := NewSymbolTable()
@@ -120,9 +122,11 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 		// Code gen: end main function, return 0 from main
-		llirgen.LLVMIRReturn(mainBlock, llirgen.LLVMIRGlobalVariable(c.LLVMModule, "main", 0))
+		llirgen.LLVMIRReturn(mainBlock, llirgen.LLVMIRGlobalVariable(c.LLVMModule, "main", "integer"))
 
 	case *ast.VariableDeclaration:
+		currFuncBlock := c.currentFunction()
+
 		if node.Type.Array != nil {
 			print("did you run array - in variable\n")
 			// Handle array declaration
@@ -130,16 +134,25 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			// Then, define the symbol in the symbol table as an array
 			if c.symbolTable.IsGlobalScope() {
 				c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, GlobalScope)
+				llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.Name.Value, node.Type.Name+"[]")
 			} else {
 				symbol := c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, LocalScope)
+				llirgen.LLVMIRAlloca(currFuncBlock.block, node.Name.Value, node.Type.Name+"[]")
 				print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
 			}
 		} else {
 			// Handle variable declaration
 			// First, compile the inner variable declaration
 			// Then, define the symbol in the symbol table as a variable
-			symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name, false)
-			print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
+			if c.symbolTable.IsGlobalScope() {
+				symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name, false)
+				llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.Name.Value, node.Type.Name)
+				print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case - 1\n")
+			} else {
+				symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name, false)
+				llirgen.LLVMIRAlloca(currFuncBlock.block, node.Name.Value, node.Type.Name+"[]")
+				print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case - 2\n")
+			}
 		}
 
 	case *ast.GlobalVariableDeclaration:
@@ -156,9 +169,11 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				return CompileResult{}, fmt.Errorf("array size must be an integer")
 			}
 			symbol := c.symbolTable.DefineArray(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name+"[]", node.VariableDeclaration.Type.Array.Value, GlobalScope)
+			llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name+"[]")
 			print(symbol.Name, symbol.Index, symbol.Scope, "1 - in Global Variable Declaration case\n")
 		} else {
 			symbol := c.symbolTable.DefineGlobal(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name)
+			llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name)
 			print(symbol.Name, symbol.Index, symbol.Scope, "2 - in Global Variable Declaration case\n")
 
 		}
@@ -340,25 +355,33 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			return CompileResult{}, fmt.Errorf("type mismatch for function %s: cannot return %s from function of type %s", function.Name, cr.Type, function.ReturnType)
 		}
 
+		// Code gen: Return statement
+		currFuncBlock := c.currentFunction()
+		// currFuncBlock.block.NewRet(llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.ReturnValue.String(), 0))
+
 		return CompileResult{Type: cr.Type}, nil
 
 	case *ast.StringLiteral:
 		str := &object.String{Value: node.Value}
-		print(str)
+		print(str, " : haha i in string literal\n")
 		return CompileResult{Type: string(str.Type())}, nil
 
 	case *ast.IntegerLiteral:
 		fmt.Printf("Type of curr node in integer literal: %T\n", node.Value)
 		integer := &object.Integer{Value: node.Value}
-		return CompileResult{Type: string(integer.Type())}, nil
+		return CompileResult{Type: string(integer.Type()), Val: constant.NewInt(types.I64, node.Value)}, nil
 
 	case *ast.FloatLiteral:
 		float := &object.Float{Value: node.Value}
-		return CompileResult{Type: string(float.Type())}, nil
+		return CompileResult{Type: string(float.Type()), Val: constant.NewFloat(types.Float, node.Value)}, nil
 
 	case *ast.Boolean:
 		boolean := &object.Boolean{Value: node.Value}
-		return CompileResult{Type: string(boolean.Type())}, nil
+		if node.Value {
+			return CompileResult{Type: string(boolean.Type()), Val: constant.NewInt(types.I1, 1)}, nil
+		} else {
+			return CompileResult{Type: string(boolean.Type()), Val: constant.NewInt(types.I1, 0)}, nil
+		}
 
 	case *ast.ArrayLiteral:
 		for _, el := range node.Elements {
