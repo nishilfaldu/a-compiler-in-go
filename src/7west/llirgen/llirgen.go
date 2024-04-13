@@ -86,22 +86,6 @@ func (c Context) lookupVariable(name string) value.Value {
 
 // context definition ends here
 
-func main() {
-	m := ir.NewModule()
-
-	// Generate global variable definition.
-	// globalG := LLVMIRGlobalVariable(m, "g", 2)
-
-	// Generate function definition for 'add'.
-	// funcAdd := newAddFunction(m)
-
-	// Generate function definition for 'main'.
-	// funcMain := newMainFunction(m, funcAdd, globalG)
-
-	// Print LLVM IR.
-	println(m.String())
-}
-
 // TODO: maybe a separate function for codegen of Arrays
 
 // TODO: a new block will be needed for the general program - this will be the entry block ("main")

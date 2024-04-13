@@ -2,6 +2,8 @@ package compiler
 
 import (
 	"fmt"
+
+	"github.com/llir/llvm/ir/value"
 )
 
 type SymbolScope string
@@ -26,6 +28,7 @@ type Symbol struct {
 	Index     int
 	Type      string
 	ArraySize int64
+	Value     value.Value
 }
 
 type SymbolTable struct {

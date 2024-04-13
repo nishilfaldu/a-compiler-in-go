@@ -11,6 +11,7 @@ import (
 
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
+	"github.com/llir/llvm/ir/enum"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
 )
@@ -24,6 +25,7 @@ type Compiler struct {
 	symbolTable *SymbolTable
 	LLVMModule  *ir.Module
 	funcStack   []*FuncBlock
+	ctx 	   *llirgen.Context
 }
 
 type CompileResult struct {
@@ -64,10 +66,14 @@ func New() *Compiler {
 		}
 	}
 
+	funcMain := llirgen.LLVMIRFuncMain(c.LLVMModule)
+	mainBlock := llirgen.LLVMIRFunctionBlock(funcMain, "entry")
+
 	return &Compiler{
 		symbolTable: symbolTable,
 		// STEP 1: create a module in program header
 		LLVMModule: llirgen.LLVMIRModule(),
+		ctx:       llirgen.NewContext(mainBlock),
 	}
 }
 
@@ -96,6 +102,10 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 
 		// STEP 1: create a module in program header
 		// var LLVMModule = llirgen.LLVMIRModule()
+		// Code gen: Set main entrypoint
+		// funcMain := llirgen.LLVMIRFuncMain(c.LLVMModule)
+		// mainBlock := llirgen.LLVMIRFunctionBlock(funcMain, "entry")
+		c.pushFunctionScope(&FuncBlock{block: mainBlock, func_: funcMain})
 
 	case *ast.ProgramBody:
 		for _, decl := range node.Declarations {
@@ -104,11 +114,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				return CompileResult{}, err
 			}
 		}
-
-		// Code gen: Set main entrypoint
-		funcMain := llirgen.LLVMIRFuncMain(c.LLVMModule)
-		mainBlock := llirgen.LLVMIRFunctionBlock(funcMain, "entry")
-		// mb := funcMain.NewBlock("entry")
 
 		print("before program body declarations\n")
 
@@ -122,7 +127,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 		// Code gen: end main function, return 0 from main
-		llirgen.LLVMIRReturn(mainBlock, llirgen.LLVMIRGlobalVariable(c.LLVMModule, "main", "integer"))
+		currFunc := c.currentFunction()
+		llirgen.LLVMIRReturn(currFunc.block, llirgen.LLVMIRGlobalVariable(c.LLVMModule, "main", "integer"))
 
 	case *ast.VariableDeclaration:
 		currFuncBlock := c.currentFunction()
@@ -180,6 +186,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 
 	case *ast.Identifier:
 		symbol, ok := c.symbolTable.Resolve(node.Value)
+
 		print(symbol.Scope, symbol.Type, " in Identifier case i just need scope\n")
 		if !ok {
 			return CompileResult{}, fmt.Errorf("undefined variable %s", node.Value)
@@ -194,6 +201,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		// 	return CompileResult{Type: symbol.Type}, nil
 		// }
 		print(symbol.Name, symbol.Type, symbol.Index, symbol.Scope, "in Identifier case\n")
+
 		return CompileResult{Type: symbol.Type}, nil
 
 	case *ast.LoopStatement:
@@ -264,7 +272,9 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if cr.Type != cr_.Type {
 			return CompileResult{}, fmt.Errorf("type mismatch: cannot perform operation %s on %s and %s", node.Operator, cr.Type, cr_.Type)
 		} else {
-			return CompileResult{Type: cr.Type}, nil
+			currFuncBlock := c.currentFunction()
+			exprValue := c.CompileInfixExpression(currFuncBlock, node, cr, cr_)
+			return CompileResult{Type: cr.Type, Val: exprValue}, nil
 		}
 
 	case *ast.IfExpression:
@@ -302,6 +312,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 	// AssignmentStatement node and Destination node are merged in one case
 	case *ast.AssignmentStatement:
 		fmt.Printf("Type of curr node in assignment statement: %T\n", node.Value)
+		currFuncBlock := c.currentFunction()
+
 		cr, err := c.Compile(node.Value)
 		if err != nil {
 			return CompileResult{}, err
@@ -325,6 +337,13 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			}
 			if cr.Type != symbol.Type {
 				return CompileResult{}, fmt.Errorf("type mismatch: cannot assign %s to %s", cr.Type, symbol.Type)
+			}
+
+			// assignment statement codegen
+			if _, ok := node.Value.(*ast.Identifier); ok {
+				alloca := llirgen.LLVMIRAlloca(currFuncBlock.block, node.Destination.Identifier.Value, symbol.Type)
+				store := llirgen.LLVMIRStore(currFuncBlock.block, cr., alloca)
+				print(store, " - store\n")
 			}
 			print(symbol.Type, cr.Type, "hello symbol type here\n")
 		}
@@ -751,4 +770,31 @@ func (c *Compiler) currentFunction() *FuncBlock {
 		return c.funcStack[len(c.funcStack)-1]
 	}
 	return nil
+}
+
+func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixExpression, cr CompileResult, cr_ CompileResult) value.Value {
+	switch node.Operator {
+	case "+":
+		return funcBlock.block.NewAdd(cr.Val, cr_.Val)
+	case "-":
+		return funcBlock.block.NewSub(cr.Val, cr_.Val)
+	case "*":
+		return funcBlock.block.NewMul(cr.Val, cr_.Val)
+	case "/":
+		return funcBlock.block.NewSDiv(cr.Val, cr_.Val)
+	case "<":
+		return funcBlock.block.NewICmp(enum.IPredSLT, cr.Val, cr_.Val)
+	case ">":
+		return funcBlock.block.NewICmp(enum.IPredSGT, cr.Val, cr_.Val)
+	case "<=":
+		return funcBlock.block.NewICmp(enum.IPredSLE, cr.Val, cr_.Val)
+	case ">=":
+		return funcBlock.block.NewICmp(enum.IPredSGE, cr.Val, cr_.Val)
+	case "==":
+		return funcBlock.block.NewICmp(enum.IPredEQ, cr.Val, cr_.Val)
+	case "!=":
+		return funcBlock.block.NewICmp(enum.IPredNE, cr.Val, cr_.Val)
+	default:
+		panic("Unimplemented infix expression")
+	}
 }
