@@ -2,15 +2,25 @@ package compiler
 
 import (
 	"a-compiler-in-go/src/7west/src/7west/ast"
+	"a-compiler-in-go/src/7west/src/7west/llirgen"
 	"a-compiler-in-go/src/7west/src/7west/object"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/llir/llvm/ir"
 )
+
+type FuncBlock struct {
+	block *ir.Block
+	func_ *ir.Func
+}
 
 type Compiler struct {
 	symbolTable *SymbolTable
+	LLVMModule  *ir.Module
+	funcStack   []*FuncBlock
 }
 
 type CompileResult struct {
@@ -29,6 +39,10 @@ type Argument struct {
 
 // TODO:  Fib(Sub(val)) - this is an interesting case and not sure if its working - depends on how many values are returned
 // TODO: Returning boolean expressions for functions with return type bool
+
+// TODO: avoided array as a function parameter for now
+
+var funcDefs map[string]*ir.Func
 
 func New() *Compiler {
 	symbolTable := NewSymbolTable()
@@ -50,6 +64,8 @@ func New() *Compiler {
 
 	return &Compiler{
 		symbolTable: symbolTable,
+		// STEP 1: create a module in program header
+		LLVMModule: llirgen.LLVMIRModule(),
 	}
 }
 
@@ -76,6 +92,9 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		// as it typically contains metadata about the program.
 		// You can optionally perform any necessary validation or processing here.
 
+		// STEP 1: create a module in program header
+		// var LLVMModule = llirgen.LLVMIRModule()
+
 	case *ast.ProgramBody:
 		for _, decl := range node.Declarations {
 			_, err := c.Compile(decl)
@@ -83,6 +102,12 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				return CompileResult{}, err
 			}
 		}
+
+		// Code gen: Set main entrypoint
+		funcMain := llirgen.LLVMIRFuncMain(c.LLVMModule)
+		mainBlock := llirgen.LLVMIRFunctionBlock(funcMain, "entry")
+		// mb := funcMain.NewBlock("entry")
+
 		print("before program body declarations\n")
 
 		print("after program body declarations\n")
@@ -93,6 +118,9 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				return CompileResult{}, err
 			}
 		}
+
+		// Code gen: end main function, return 0 from main
+		llirgen.LLVMIRReturn(mainBlock, llirgen.LLVMIRGlobalVariable(c.LLVMModule, "main", 0))
 
 	case *ast.VariableDeclaration:
 		if node.Type.Array != nil {
@@ -443,6 +471,12 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		for _, param := range node.Parameters {
 			c.symbolTable.Define(param.Name.Value, param.Type.Name, true)
 		}
+
+		// Code gen: function
+		funcDef := llirgen.LLVMIRFunctionDefinition(c.LLVMModule, node.Name.Value, node.TypeMark.Name, node.Parameters)
+		c.pushFunctionScope(&FuncBlock{block: llirgen.LLVMIRFunctionBlock(funcDef, node.Name.Value), func_: funcDef})
+
+		// print(funcDef.String() + " :funcDef\n")
 		print("in procedure header after enter scope\n")
 		PrintSymbolTable(c.symbolTable)
 
@@ -676,4 +710,22 @@ func (c *Compiler) isBooleanExpression(expr string) bool {
 
 	// If no relational operators found, it's not a boolean expression
 	return false
+}
+
+func (c *Compiler) pushFunctionScope(func_ *FuncBlock) {
+	c.funcStack = append(c.funcStack, func_)
+}
+
+func (c *Compiler) popFunctionScope() {
+	if len(c.funcStack) > 0 {
+		c.funcStack = c.funcStack[:len(c.funcStack)-1]
+	}
+	// Leave scope logic...
+}
+
+func (c *Compiler) currentFunction() *FuncBlock {
+	if len(c.funcStack) > 0 {
+		return c.funcStack[len(c.funcStack)-1]
+	}
+	return nil
 }
