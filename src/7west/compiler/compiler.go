@@ -176,7 +176,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			return CompileResult{}, fmt.Errorf("entry function not found")
 		}
 		currFuncBlock := funcMap[function.Name]
-		llirgen.LLVMIRReturn(currFuncBlock.block, llirgen.LLVMIRGlobalVariable(c.LLVMModule, "mainReturn", "integer"))
+		llirgen.LLVMIRReturn(currFuncBlock.block, constant.NewInt(types.I64, 0))
 
 	case *ast.VariableDeclaration:
 		function, ok := c.symbolTable.getCurrentFunction()
@@ -185,7 +185,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 		print("function.name: ", function.Name, "\n")
 		currFuncBlock := funcMap[function.Name]
-		entryBlock := funcMap["entry"]
+		// entryBlock := funcMap["entry"]
 
 		if node.Type.Array != nil {
 			print("did you run array - in variable\n")
@@ -195,8 +195,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			if c.symbolTable.IsGlobalScope() {
 				c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, GlobalScope)
 				global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.Name.Value, node.Type.Name+"[]")
-				loadGlobal := entryBlock.block.NewLoad(llirgen.GetLLVMIRType(node.Type.Name+"[]"), global)
-				c.ctx.vars[node.Name.Value] = loadGlobal
+				// loadGlobal := entryBlock.block.NewLoad(llirgen.GetLLVMIRType(node.Type.Name+"[]"), global)
+				c.ctx.vars[node.Name.Value] = global
 			} else {
 				symbol := c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, LocalScope)
 				alloca := llirgen.LLVMIRAlloca(currFuncBlock.block, node.Name.Value, node.Type.Name+"[]")
@@ -227,7 +227,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 	case *ast.GlobalVariableDeclaration:
-		currFuncBlock := funcMap["entry"]
+		// currFuncBlock := funcMap["entry"]
 		// Handle global variable declaration
 		// First, compile the inner variable declaration
 		// Then, define the symbol in the symbol table as a global variable
@@ -242,15 +242,15 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			}
 			symbol := c.symbolTable.DefineArray(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name+"[]", node.VariableDeclaration.Type.Array.Value, GlobalScope)
 			global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name+"[]")
-			loadGlobal := currFuncBlock.block.NewLoad(llirgen.GetLLVMIRType(node.VariableDeclaration.Type.Name+"[]"), global)
-			c.ctx.vars[node.VariableDeclaration.Name.Value] = loadGlobal
+			// loadGlobal := currFuncBlock.block.NewLoad(llirgen.GetLLVMIRType(node.VariableDeclaration.Type.Name+"[]"), global)
+			c.ctx.vars[node.VariableDeclaration.Name.Value] = global
 
 			print(symbol.Name, symbol.Index, symbol.Scope, "1 - in Global Variable Declaration case\n")
 		} else {
 			symbol := c.symbolTable.DefineGlobal(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name)
 			global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name)
-			loadGlobal := currFuncBlock.block.NewLoad(llirgen.GetLLVMIRType(node.VariableDeclaration.Type.Name), global)
-			c.ctx.vars[node.VariableDeclaration.Name.Value] = loadGlobal
+			// loadGlobal := currFuncBlock.block.NewLoad(llirgen.GetLLVMIRType(node.VariableDeclaration.Type.Name), global)
+			c.ctx.vars[node.VariableDeclaration.Name.Value] = global
 			print(symbol.Name, symbol.Index, symbol.Scope, "2 - in Global Variable Declaration case\n")
 		}
 
@@ -444,8 +444,11 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				c.ctx.NewStore(rhsVal, lhsAlloca)
 			} else if _, ok := node.Value.(*ast.CallExpression); ok {
 				lhsAlloca := c.ctx.vars[symbol.Name]
-				rhsVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
-				c.ctx.NewStore(rhsVal, lhsAlloca)
+				print(lhsAlloca.Type().String(), " herr question?\n")
+				print(cr.Val.String(), " : cr val in call expr in assign statement\n")
+				// print(cr.Val.Type().String(), " : cr val type haha\n")
+				// rhsVal := c.ctx.NewLoad(types.NewPointer(cr.Val.Type()), cr.Val)
+				c.ctx.NewStore(cr.Val, lhsAlloca)
 				print("yes-2?\n")
 			} else {
 				print(symbol.Name, " - symbol name\n")
@@ -453,8 +456,11 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				lhsAlloca := c.ctx.vars[symbol.Name]
 				print(lhsAlloca.String(), " : lhs alloca\n")
 				print(cr.Val.String(), " : cr val\n")
-				rhsVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
-				c.ctx.NewStore(rhsVal, lhsAlloca)
+				print(cr.Val.Type().String(), " : cr val type\n")
+				ptrType := types.NewPointer(cr.Val.Type())
+				print(ptrType.String(), " : ptr type\n")
+				// rhsVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
+				c.ctx.NewStore(cr.Val, lhsAlloca)
 			}
 			print(symbol.Type, cr.Type, "hello symbol type here\n")
 		}
@@ -567,6 +573,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			currentFuncName := node.Function.String()
 			if builtinWithExists(currentFuncName) {
 				c.compileBuiltInFunction(node)
+				// TODO: uncomment the below after installing llvm
 				return c.insertRuntimeFunctions(node)
 			} else {
 				// Try to resolve the function name in inner scopes
@@ -825,21 +832,36 @@ func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression) (CompileResu
 	m := c.LLVMModule
 	switch node.Function.String() {
 	case "putinteger":
-		putinteger := m.NewFunc("putinteger", llirgen.GetLLVMIRType("bool"))
-		putinteger.Params = append(putinteger.Params, ir.NewParam("paramValue", llirgen.GetLLVMIRType("integer")))
+		putinteger := m.NewFunc("putinteger", types.I1)
+		putinteger.Params = append(putinteger.Params, ir.NewParam("paramValue", types.I64Ptr))
 		putintegerEntry := putinteger.NewBlock("putinteger.entry")
-		formatStr := constant.NewCharArrayFromString("%lld\n\x00")
+		loaded := putintegerEntry.NewLoad(types.I64, putinteger.Params[0])
+		formatStrGlobal := m.NewGlobalDef(".textstr", constant.NewCharArrayFromString("%d\n\x00"))
+		// Define indices for the getelementptr instruction.
+		indices := []value.Value{
+			constant.NewInt(types.I64, 0), // Index 0 to access the first element.
+			constant.NewInt(types.I64, 0), // Index 0 again, since it's a flat array.
+		}
+		formatStrPtr := putintegerEntry.NewGetElementPtr(formatStrGlobal.Typ.ElemType, formatStrGlobal, indices...)
 		cr, err := c.Compile(node.Arguments[0])
 		if err != nil {
 			return CompileResult{}, fmt.Errorf("error compiling argument for putinteger: %w", err)
 		}
-		callInst := putintegerEntry.NewCall(
+		putintegerEntry.NewCall(
 			m.NewFunc("printf", types.I32, ir.NewParam("format", types.NewPointer(types.I8))),
-			formatStr,
-			cr.Val, // Pass the integer argument to printf.
+			formatStrPtr,
+			loaded, // Pass the integer argument to printf.
 		)
-		putintegerEntry.NewRet(llirgen.GetLLVMIRConstant("bool"))
-		return CompileResult{Type: "bool", Val: callInst}, nil
+		putintegerEntry.NewRet(constant.NewInt(types.I1, 1))
+
+		callInstFromMain := funcMap["entry"].block.NewCall(putinteger, cr.Val)
+		return CompileResult{Type: "bool", Val: callInstFromMain}, nil
+	case "getbool":
+		getbool := m.NewFunc("getbool", llirgen.GetLLVMIRType("bool"))
+		getboolEntry := getbool.NewBlock("getbool.entry")
+		boolVal := constant.NewInt(types.I1, 1)
+		getboolEntry.NewRet(constant.NewInt(types.I1, 1))
+		return CompileResult{Type: "bool", Val: boolVal}, nil
 	default:
 		return CompileResult{}, nil
 	}
@@ -940,24 +962,6 @@ func (c *Compiler) isBooleanExpression(expr string) bool {
 	return false
 }
 
-func (c *Compiler) pushFunctionScope(func_ *FuncBlock) {
-	c.funcStack = append(c.funcStack, func_)
-}
-
-func (c *Compiler) popFunctionScope() {
-	if len(c.funcStack) > 0 {
-		c.funcStack = c.funcStack[:len(c.funcStack)-1]
-	}
-	// Leave scope logic...
-}
-
-// func (c *Compiler) currentFunction() *FuncBlock {
-// 	if len(c.funcStack) > 0 {
-// 		return c.funcStack[len(c.funcStack)-1]
-// 	}
-// 	return nil
-// }
-
 func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixExpression, cr CompileResult, cr_ CompileResult) value.Value {
 	switch node.Operator {
 	case "+":
@@ -965,6 +969,15 @@ func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixE
 	case "-":
 		return funcBlock.block.NewSub(cr.Val, cr_.Val)
 	case "*":
+		if _, ok := cr.Val.(*ir.InstAlloca); ok {
+			// Load the value if cr.Val is an *ir.InstAlloca
+			val := funcBlock.block.NewLoad(types.I64, cr.Val)
+			return funcBlock.block.NewMul(val, cr_.Val)
+		} else if _, ok := cr_.Val.(*ir.InstAlloca); ok {
+			// Load the value if cr_.Val is an *ir.InstAlloca
+			val := funcBlock.block.NewLoad(types.I64, cr_.Val)
+			return funcBlock.block.NewMul(cr.Val, val)
+		}
 		return funcBlock.block.NewMul(cr.Val, cr_.Val)
 	case "/":
 		return funcBlock.block.NewSDiv(cr.Val, cr_.Val)
