@@ -147,6 +147,8 @@ func (s *SymbolTable) getCurrentFunction() (FunctionType, bool) {
 	for name := range s.store {
 		if s.store[name].Scope == FunctionScope {
 			return FunctionType{Name: name, ReturnType: s.store[name].Type}, true
+		} else if s.store[name].Scope == BuiltinScope {
+			return FunctionType{Name: "entry", ReturnType: "integer"}, true
 		}
 	}
 	// If no function name found

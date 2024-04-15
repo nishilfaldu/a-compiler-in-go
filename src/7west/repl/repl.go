@@ -48,8 +48,9 @@ func Start(in io.Reader, out io.Writer) {
 
 		io.WriteString(out, program.String())
 		io.WriteString(out, "\n")
+		io.WriteString(out, comp.LLVMModule.String()+"\n")
 
-		// When just Lexer existed:
+		// Note: When just Lexer existed:
 		// // loop through the tokens until we reach the end of the input
 		// for tok := l.NextToken(); tok.Type != token.EOF; tok = l.NextToken() {
 		// 	// print the token type and literal
