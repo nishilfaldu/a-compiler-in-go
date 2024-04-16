@@ -5,14 +5,16 @@
 define i64 @main() {
 entry:
         store i64 3, i64* @a
-        %0 = call i64 @f(i64 3)
+        %arg0 = alloca i64
+        store i64 3, i64* %arg0
+        %0 = call i64 @f(i64* %arg0)
         store i64 %0, i64* @a
         %1 = call i1 @putinteger(i64* @a)
         store i1 %1, i1* @tmp
         ret i64 0
 }
 
-define i64 @f(i64 %x) {
+define i64 @f(i64* %x) {
 f:
         %b = alloca i64
         %y = alloca i64
@@ -21,8 +23,9 @@ f:
         store i64 %0, i64* %y
         %1 = load i64, i64* %y
         %2 = mul i64 %1, 4
-        %3 = add i64 %x, %2
-        ret i64 %3
+        %3 = load i64, i64* %x
+        %4 = add i64 %3, %2
+        ret i64 %4
 }
 
 define i1 @putinteger(i64* %paramValue) {
