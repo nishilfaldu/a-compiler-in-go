@@ -203,13 +203,14 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			// Then, define the symbol in the symbol table as an array
 			if c.symbolTable.IsGlobalScope() {
 				c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, GlobalScope)
-				global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.Name.Value, node.Type.Name+"[]")
-				// loadGlobal := entryBlock.block.NewLoad(llirgen.GetLLVMIRType(node.Type.Name+"[]"), global)
+				// global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.Name.Value, node.Type.Name+"[]")
+				global := c.LLVMModule.NewGlobalDef(node.Name.Value, constant.NewArray(types.NewArray(uint64(node.Type.Array.Value), llirgen.GetLLVMIRType(node.Type.Name))))
 				c.ctx.vars[node.Name.Value] = global
 			} else {
 				symbol := c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, LocalScope)
-				alloca := llirgen.LLVMIRAlloca(currFuncBlock.block, node.Name.Value, node.Type.Name+"[]")
-				// currFuncBlock.block.NewStore(llirgen.GetLLVMIRConstant(node.Type.Name+"[]"), alloca)
+				// alloca := llirgen.LLVMIRAlloca(currFuncBlock.block, node.Name.Value, node.Type.Name+"[]")
+				alloca := currFuncBlock.block.NewAlloca(types.NewArray(uint64(node.Type.Array.Value), llirgen.GetLLVMIRType(node.Type.Name)))
+				alloca.SetName(node.Name.Value)
 				c.ctx.vars[node.Name.Value] = alloca
 				print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
 			}
@@ -221,14 +222,12 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				print("you only you\n")
 				symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name, false)
 				global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.Name.Value, node.Type.Name)
-				// loadGlobal := entryBlock.block.NewLoad(llirgen.GetLLVMIRType(node.Type.Name), global)
 				c.ctx.vars[node.Name.Value] = global
 
 				print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case - 1\n")
 			} else {
 				symbol := c.symbolTable.Define(node.Name.Value, node.Type.Name, false)
 				alloca := llirgen.LLVMIRAlloca(currFuncBlock.block, node.Name.Value, node.Type.Name)
-				// currFuncBlock.block.NewStore(llirgen.GetLLVMIRConstant(node.Type.Name), alloca)
 				c.ctx.vars[node.Name.Value] = alloca
 
 				print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case - 2\n")
@@ -250,15 +249,13 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				return CompileResult{}, fmt.Errorf("array size must be an integer")
 			}
 			symbol := c.symbolTable.DefineArray(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name+"[]", node.VariableDeclaration.Type.Array.Value, GlobalScope)
-			global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name+"[]")
-			// loadGlobal := currFuncBlock.block.NewLoad(llirgen.GetLLVMIRType(node.VariableDeclaration.Type.Name+"[]"), global)
+			// global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name+"[]")
+			global := c.LLVMModule.NewGlobalDef(node.VariableDeclaration.Name.Value, constant.NewArray(types.NewArray(uint64(node.VariableDeclaration.Type.Array.Value), llirgen.GetLLVMIRType(node.VariableDeclaration.Type.Name))))
 			c.ctx.vars[node.VariableDeclaration.Name.Value] = global
-
 			print(symbol.Name, symbol.Index, symbol.Scope, "1 - in Global Variable Declaration case\n")
 		} else {
 			symbol := c.symbolTable.DefineGlobal(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name)
 			global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name)
-			// loadGlobal := currFuncBlock.block.NewLoad(llirgen.GetLLVMIRType(node.VariableDeclaration.Type.Name), global)
 			c.ctx.vars[node.VariableDeclaration.Name.Value] = global
 			print(symbol.Name, symbol.Index, symbol.Scope, "2 - in Global Variable Declaration case\n")
 		}
