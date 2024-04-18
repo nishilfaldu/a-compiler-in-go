@@ -299,12 +299,25 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 
 	case *ast.LoopStatement:
 		// Compile the initialization statement
-		_, err := c.Compile(node.InitStatement)
+		currentFunction := c.ctx.Parent
+		loopCtx := c.ctx.NewContext(currentFunction.NewBlock("for.loop.body"))
+		c.ctx.NewBr(loopCtx.Block)
+
+		// _, err := c.Compile(node.InitStatement)
+		// if err != nil {
+		// 	return CompileResult{}, err
+		// }
+		initName := node.InitStatement.Destination.Identifier.Value
+		initExprCr, err := c.Compile(node.InitStatement.Value)
 		if err != nil {
-			return CompileResult{}, err
+			return CompileResult{}, fmt.Errorf("error compiling loop initialization expression: %w", err)
 		}
+		firstAppear := loopCtx.NewPhi(ir.NewIncoming(initExprCr.Val, c.ctx.Block))
+		loopCtx.vars[initName] = firstAppear
+		leaveB := currentFunction.NewBlock("leave.for.loop")
+		loopCtx.leaveBlock = leaveB
 		// Compile the loop condition
-		_, err_ := c.Compile(node.Condition)
+		crCond, err_ := c.Compile(node.Condition)
 		if err_ != nil {
 			return CompileResult{}, err_
 		}
@@ -318,6 +331,9 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if err != nil {
 			return CompileResult{}, err
 		}
+
+		leaveB.NewRet(nil)
+		loopCtx.NewCondBr(crCond.Val, loopCtx.Block, leaveB)
 
 	case *ast.ForBlockStatement:
 		for _, stmt := range node.Statements {
