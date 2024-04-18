@@ -149,6 +149,12 @@ type Destination struct {
 	Expression Expression // This will represent the index expression (if present)
 }
 
+func (d *Destination) TokenLiteral() string {
+	if d.Identifier != nil {
+		return d.Identifier.TokenLiteral()
+	}
+	return ""
+}
 func (d *Destination) String() string {
 	var out bytes.Buffer
 

@@ -211,6 +211,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				// alloca := llirgen.LLVMIRAlloca(currFuncBlock.block, node.Name.Value, node.Type.Name+"[]")
 				alloca := currFuncBlock.block.NewAlloca(types.NewArray(uint64(node.Type.Array.Value), llirgen.GetLLVMIRType(node.Type.Name)))
 				alloca.SetName(node.Name.Value)
+				print(alloca.String(), " : alloha\n")
 				c.ctx.vars[node.Name.Value] = alloca
 				print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
 			}
@@ -331,8 +332,14 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if err != nil {
 			return CompileResult{}, err
 		}
+		function, ok := c.symbolTable.getCurrentFunction()
+		if !ok {
+			return CompileResult{}, fmt.Errorf("could not retrieve current function")
+		}
+		currFuncBlock := funcMap[function.Name]
+		exprValue := c.CompilePrefixExpression(currFuncBlock, node, cr)
 
-		return CompileResult{Type: cr.Type}, nil
+		return CompileResult{Type: cr.Type, Val: exprValue}, nil
 
 	case *ast.InfixExpression:
 		print(node.Operator, " - operator\n")
@@ -368,6 +375,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			}
 			currFuncBlock := funcMap[function.Name]
 			print(function.Name, " : function name in Infix Expr\n")
+			print(cr.Val.String(), cr_.Val.String(), " : cr val in Infix Expr\n")
 			exprValue := c.CompileInfixExpression(currFuncBlock, node, cr, cr_)
 			return CompileResult{Type: cr.Type, Val: exprValue}, nil
 		}
@@ -435,22 +443,26 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 	// AssignmentStatement node and Destination node are merged in one case
 	case *ast.AssignmentStatement:
 		fmt.Printf("Type of curr node in assignment statement: %T\n", node.Value)
-		// currFuncBlock := c.currentFunction()
-
 		cr, err := c.Compile(node.Value)
+		print(node.Value.String(), " : node value in AssignmentStatement case\n")
 		if err != nil {
 			return CompileResult{}, err
 		}
 
 		// If the assignment has an index expression - array indexing - compile it first
 		if node.Destination.Expression != nil {
-			cr_, err_ := c.Compile(node.Destination.Expression)
+			cr_, err_ := c.Compile(node.Destination)
+			// print(node.Destination.String(), "\n")
+			print("i have to be right herer\n")
 			if err != nil {
 				return CompileResult{}, err_
 			}
 			if cr_.Type != cr.Type {
 				return CompileResult{}, fmt.Errorf("type mismatch in array assignment: cannot assign %s to %s", cr.Type, cr_.Type)
 			}
+			print(cr.Val.String(), " : cr val in AssignmentStatement case\n")
+			loaded := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
+			c.ctx.Block.NewStore(loaded, cr_.Val)
 		} else {
 			// // Compile the identifier part of the destination
 			symbol, ok := c.symbolTable.Resolve(node.Destination.Identifier.Value)
@@ -470,6 +482,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				lhsAlloca := c.ctx.lookupVariable(symbol.Name)
 				rhsVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
 				c.ctx.NewStore(rhsVal, lhsAlloca)
+			} else if _, ok := node.Value.(*ast.IndexExpression); ok {
+				print("how right i am?\n")
 			} else if _, ok := node.Value.(*ast.CallExpression); ok {
 				if symbol.Scope == ParamLocalScope {
 					// get the local symbols for the current function
@@ -530,18 +544,56 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 						}
 					} else {
 						lhsAlloca := c.ctx.lookupVariable(symbol.Name)
-						print(lhsAlloca, " lhs alloca herr question?\n")
-						print("something?\n")
-						print(cr.Val.String(), " : cr val\n")
-						print("something?2\n")
-						print(cr.Val.Type().String(), " : cr val type\n")
-						print(lhsAlloca.String(), " : lhs alloca\n")
 						c.ctx.NewStore(cr.Val, lhsAlloca)
 					}
 				}
 			}
 			print(symbol.Type, cr.Type, "hello symbol type here\n")
 		}
+
+	case *ast.Destination:
+		// Compile the identifier part of the destination
+		print(node.String(), "here in destination")
+		// here arr[idx] - idx is an expression
+		cr_, err_ := c.Compile(node.Expression)
+		if err_ != nil {
+			return CompileResult{}, err_
+		}
+		if cr_.Type != "integer" {
+			return CompileResult{}, fmt.Errorf("index must be an integer")
+		}
+
+		print(cr_.Val.String(), " : cr val in destination\n")
+
+		symbol, ok := c.symbolTable.Resolve(node.Identifier.String())
+		subTyp := symbol.Type[0 : len(symbol.Type)-2]
+		if !ok {
+			return CompileResult{}, fmt.Errorf("undefined array variable %s", node.Identifier.String())
+		} else {
+			if symbol.Type != "integer[]" {
+				return CompileResult{}, fmt.Errorf("variable %s is not an array", node.Identifier.String())
+			} else {
+				// check if the index is within the bounds of the array
+				int1, err := strconv.ParseInt(node.Expression.String(), 6, 12)
+				if err != nil {
+					return CompileResult{}, fmt.Errorf("there was an error parsing the index to int: %w", err)
+				}
+				if int1 >= symbol.ArraySize {
+					return CompileResult{}, fmt.Errorf("index out of bounds")
+				}
+			}
+		}
+		block := c.ctx.Block
+		arraySize := symbol.ArraySize
+		arrayIdx, err := strconv.Atoi(node.Expression.String())
+		if err != nil {
+			return CompileResult{}, fmt.Errorf("error converting index to int: %w", err)
+		}
+		arrTyp := types.NewArray(uint64(arraySize), llirgen.GetLLVMIRType(subTyp))
+		definedArray := c.ctx.lookupVariable(node.Identifier.String())
+		pToElem := block.NewGetElementPtr(arrTyp, definedArray, constant.NewInt(types.I64, 0), constant.NewInt(types.I64, int64(arrayIdx)))
+
+		return CompileResult{Type: subTyp, Val: pToElem}, nil
 
 	case *ast.ExpressionStatement:
 		_, err := c.Compile(node.Expression)
@@ -645,8 +697,27 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				}
 			}
 		}
-		sub := cr.Type[0 : len(cr.Type)-2] // remove the [] from the type string
-		return CompileResult{Type: sub}, nil
+		subTyp := cr.Type[0 : len(cr.Type)-2]
+		print(cr.Val.String(), cr_.Val.String(), " : cr val in index expression\n")
+		block := c.ctx.Block
+		arrayIdx, err := strconv.Atoi(node.Index.String())
+		if err != nil {
+			return CompileResult{}, fmt.Errorf("error converting index to int: %w", err)
+		}
+		arraySize := symbol.ArraySize
+		arrTyp := types.NewArray(uint64(arraySize), llirgen.GetLLVMIRType(subTyp))
+		definedArray := c.ctx.lookupVariable(node.Left.String())
+		print(definedArray.String(), " : defined array\n")
+		print(arrTyp.LLString(), " : arrTyp\n")
+		pToElem := block.NewGetElementPtr(arrTyp, definedArray, constant.NewInt(types.I64, 0), constant.NewInt(types.I64, int64(arrayIdx)))
+		print(pToElem.LLString(), " : gep\n")
+		// loadedArray := block.NewLoad(arrTyp, definedArray)
+		// print(loadedArray.String(), " : loaded array\n")
+		// val := block.NewExtractValue(loadedArray, uint64(arrayIdx))
+		// print(val.String(), " : extracted val in index expression\n")
+		// block.NewStore(constant.NewInt(types.I64, 5), pToElem)
+		// remove the [] from the type string
+		return CompileResult{Type: subTyp, Val: pToElem}, nil
 
 	case *ast.CallExpression:
 		fmt.Printf("Type of curr node in call expression: %T\n", node.Function)
@@ -1078,6 +1149,15 @@ func (c *Compiler) isBooleanExpression(expr string) bool {
 
 	// If no relational operators found, it's not a boolean expression
 	return false
+}
+
+func (c *Compiler) CompilePrefixExpression(funcBlock *FuncBlock, node *ast.PrefixExpression, cr CompileResult) value.Value {
+	switch node.Operator {
+	case "-":
+		return funcBlock.block.NewFNeg(cr.Val)
+	default:
+		panic("Unimplemented prefix expression")
+	}
 }
 
 func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixExpression, cr CompileResult, cr_ CompileResult) value.Value {
