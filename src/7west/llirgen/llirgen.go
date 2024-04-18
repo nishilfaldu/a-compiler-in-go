@@ -2,49 +2,12 @@ package llirgen
 
 import (
 	"a-compiler-in-go/src/7west/src/7west/ast"
-	"fmt"
 
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
 )
-
-// context definition starts here
-type Context struct {
-	*ir.Block
-	parent *Context
-	vars   map[string]value.Value
-}
-
-// this can be used to create initial context
-func NewContext(b *ir.Block) *Context {
-	return &Context{
-		Block:  b,
-		parent: nil,
-		vars:   make(map[string]value.Value),
-	}
-}
-
-// this can used to create new context with parent context
-func (c *Context) NewContext(b *ir.Block) *Context {
-	ctx := NewContext(b)
-	ctx.parent = c
-	return ctx
-}
-
-func (c *Context) lookupVariable(name string) value.Value {
-	if v, ok := c.vars[name]; ok {
-		return v
-	} else if c.parent != nil {
-		return c.parent.lookupVariable(name)
-	} else {
-		fmt.Printf("variable: `%s`\n", name)
-		panic("no such variable")
-	}
-}
-
-// context definition ends here
 
 // TODO: maybe a separate function for codegen of Arrays
 
@@ -82,7 +45,7 @@ func LLVMIRStore(block *ir.Block, value value.Value, ptr *ir.InstAlloca) *ir.Ins
 func LLVMIRFunctionDefinition(m *ir.Module, name string, returnType string, params []*ast.VariableDeclaration) *ir.Func {
 	irParams := make([]*ir.Param, len(params))
 	for i, p := range params {
-		param := ir.NewParam(p.Name.Value, GetLLVMIRType(p.Type.Name))
+		param := ir.NewParam(p.Name.Value, types.NewPointer(GetLLVMIRType(p.Type.Name)))
 		irParams[i] = param
 	}
 	funcDef := m.NewFunc(name, GetLLVMIRType(returnType), irParams...)
@@ -118,7 +81,7 @@ func GetLLVMIRType(type_ string) types.Type {
 		return types.I1
 	case "string":
 		// String = array of 8 bit ints
-		return types.NewArray(8, types.I8)
+		return types.NewArray(30, types.I8)
 	case "integer[]":
 		return types.NewArray(8, types.I64)
 	case "void":
@@ -139,7 +102,7 @@ func GetLLVMIRConstant(type_ string) constant.Constant {
 	case "bool":
 		return constant.NewInt(types.I1, 1)
 	case "string":
-		return constant.NewCharArrayFromString("")
+		return constant.NewNull(types.NewPointer(types.NewArray(255, types.I8)))
 	case "integer[]":
 		return constant.NewArray(&types.ArrayType{TypeName: types.I64.TypeName}, constant.NewInt(types.I64, 0))
 	case "string[]":

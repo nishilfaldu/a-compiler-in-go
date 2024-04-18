@@ -29,6 +29,16 @@ type Context struct {
 	leaveBlock *ir.Block
 }
 
+func (ctx *Context) HasTerminator() bool {
+	// Get the last instruction in the current basic block
+	// lastInstr := ctx.Block.Insts[len(ctx.Block.Insts)-1]
+
+	// Check if the last instruction is a terminator instruction
+	// print(lastInstr.LLString(), " : last instruction\n")
+	print(ctx.Block.Term == nil, " woppsie\n")
+	return ctx.Block.Term != nil
+}
+
 // this can be used to create initial context
 func NewContext(b *ir.Block) *Context {
 	return &Context{
@@ -60,7 +70,6 @@ func (c *Context) lookupVariable(name string) value.Value {
 type Compiler struct {
 	symbolTable *SymbolTable
 	LLVMModule  *ir.Module
-	funcStack   []*FuncBlock
 	ctx         *Context
 }
 
@@ -281,7 +290,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				}
 			}
 			print(currentFunction.String(), " : current function param local in Identifier\n")
-			// currFuncBlock := funcMap[""]
 		}
 		print(symbol.Name, symbol.Type, symbol.Index, symbol.Scope, "in Identifier case\n")
 		// TODO: might have to change this for function call because they are also identifiers
@@ -368,8 +376,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 	case *ast.IfExpression:
-		print(node.Condition, " - condition\n")
-		_, err := c.Compile(node.Condition)
+		print(node.Condition.String(), " - condition\n")
+		crCond, err := c.Compile(node.Condition)
 		if err != nil {
 			return CompileResult{}, err
 		}
@@ -377,18 +385,46 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if !c.isBooleanExpression(conditionExprString) {
 			return CompileResult{}, fmt.Errorf("if condition must be a boolean expression")
 		}
+		// print(thenCtx.String(), " ", crCond.Val.String(), " : thenCtx\n")
+		currentFunction := c.ctx.Parent
+		thenCtx := c.ctx.NewContext(currentFunction.NewBlock("if.then"))
+		// elseB := currentFunction.NewBlock("if.else")
+		// elseCtx := c.ctx.NewContext(elseB)
+		c.ctx = thenCtx
 
+		print(node.Consequence.String(), " - consequence\n")
 		_, err_ := c.Compile(node.Consequence)
 		if err_ != nil {
 			return CompileResult{}, err
 		}
 
+		c.ctx = c.ctx.parent
+
+		print(thenCtx.String(), " ", crCond.Val.String(), " : thenCtx\n")
+
+		// thenCtx.HasTerminator()
+		// else block
 		if node.Alternative != nil {
+			// c.ctx = elseCtx
 			_, err := c.Compile(node.Alternative)
 			if err != nil {
 				return CompileResult{}, err
 			}
+			// c.ctx = c.ctx.parent
 		}
+		// TODO: when you dont have a terminator - i.e. return statement
+		if !thenCtx.HasTerminator() {
+			print("this should run - 1\n")
+			thenCtx.NewBr(c.ctx.Block)
+		}
+		// if !elseCtx.HasTerminator() {
+		// 	print("this should run - 2\n")
+		// 	elseCtx.NewBr(c.ctx.Block)
+		// }
+		x := c.ctx.NewCondBr(crCond.Val, thenCtx.Block, nil)
+		print(c.ctx.LLString(), " : then block\n")
+		print(x.LLString(), " : new cond br\n")
+		return CompileResult{Type: crCond.Type}, nil
 
 	case *ast.IfBlockStatement:
 		print(len(node.Statements), " - len of statements\n")
@@ -419,7 +455,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				return CompileResult{}, fmt.Errorf("type mismatch in array assignment: cannot assign %s to %s", cr.Type, cr_.Type)
 			}
 		} else {
-			// Compile the identifier part of the destination
+			// // Compile the identifier part of the destination
 			symbol, ok := c.symbolTable.Resolve(node.Destination.Identifier.Value)
 			print(symbol.Name, symbol.Index, symbol.Scope, "in AssignmentStatement case - print for usage\n")
 			if !ok {
@@ -432,35 +468,80 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			// assignment statement codegen
 			if _, ok := node.Value.(*ast.Identifier); ok {
 				print("yes?\n")
-				// alloca := c.ctx.NewAlloca(llirgen.GetLLVMIRType(symbol.Type))
-				// print(alloca.Type().String(), " : alloca type\n")
 				print("yes-1?\n")
-				// store := llirgen.LLVMIRStore(c.ctx.Block, cr.Val, alloca)
-				// crVal := c.ctx.NewBitCast(cr.Val, llirgen.GetLLVMIRType(symbol.Type))
-				// alloca := c.ctx.vars[node.Destination.Identifier.Value]
 				print(cr.Val.String(), symbol.Name, " : cr val-1\n")
-				lhsAlloca := c.ctx.vars[symbol.Name]
+				lhsAlloca := c.ctx.lookupVariable(symbol.Name)
 				rhsVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
 				c.ctx.NewStore(rhsVal, lhsAlloca)
 			} else if _, ok := node.Value.(*ast.CallExpression); ok {
-				lhsAlloca := c.ctx.vars[symbol.Name]
-				print(lhsAlloca.Type().String(), " herr question?\n")
-				print(cr.Val.String(), " : cr val in call expr in assign statement\n")
-				// print(cr.Val.Type().String(), " : cr val type haha\n")
-				// rhsVal := c.ctx.NewLoad(types.NewPointer(cr.Val.Type()), cr.Val)
-				c.ctx.NewStore(cr.Val, lhsAlloca)
-				print("yes-2?\n")
+				if symbol.Scope == ParamLocalScope {
+					// get the local symbols for the current function
+					currentFunction := c.ctx.Parent
+					params := currentFunction.Params
+					for _, param := range params {
+						if param.Name() == symbol.Name {
+							// might
+							print(param.String(), " : param string\n")
+							load := c.ctx.NewLoad(param.Type(), param)
+							print(load.LLString(), "\n")
+							print(cr.Val.String(), " : cr val in Identifier\n")
+							// loadedCrVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
+							c.ctx.NewStore(cr.Val, param)
+						}
+					}
+					print(currentFunction.String(), " : current function param local in Identifier\n")
+				} else {
+					lhsAlloca := c.ctx.lookupVariable(symbol.Name)
+					if lhsAlloca == nil {
+						print("yep i am nil\n")
+					}
+					print(lhsAlloca.Type().String(), " lhs alloca herr question?\n")
+					print(cr.Val.String(), " : cr val in call expr in assign statement\n")
+					c.ctx.NewStore(cr.Val, lhsAlloca)
+					print("yes-2?\n")
+				}
 			} else {
 				print(symbol.Name, " - symbol name\n")
-				// this is nil
-				lhsAlloca := c.ctx.vars[symbol.Name]
-				print(lhsAlloca.String(), " : lhs alloca\n")
-				print(cr.Val.String(), " : cr val\n")
-				print(cr.Val.Type().String(), " : cr val type\n")
-				ptrType := types.NewPointer(cr.Val.Type())
-				print(ptrType.String(), " : ptr type\n")
-				// rhsVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
-				c.ctx.NewStore(cr.Val, lhsAlloca)
+				if symbol.Scope == ParamLocalScope {
+					print("i want this to run 3 times\n")
+					if symbol.Scope == ParamLocalScope {
+						// get the local symbols for the current function
+						currentFunction := c.ctx.Parent
+						params := currentFunction.Params
+						for _, param := range params {
+							if param.Name() == symbol.Name {
+								// might
+								print(param.String(), " : param string\n")
+								load := c.ctx.NewLoad(param.Type(), param)
+								print(load.LLString(), "\n")
+								print(cr.Val.String(), " : cr val in Identifier\n")
+								// loadedCrVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
+								c.ctx.NewStore(cr.Val, param)
+							}
+						}
+						print(currentFunction.String(), " : current function param local in Identifier\n")
+					}
+				} else {
+					if symbol.Scope == GlobalScope && symbol.Type == "string" {
+						// TODO: fix this
+						global := c.ctx.lookupVariable(symbol.Name)
+						if global_, ok := global.(*ir.Global); ok {
+							print(node.Value.String(), " : node value\n")
+							print(cr.Val.Type().String(), " : cr val type - haah\n")
+							ptrConst := constant.NewGetElementPtr(cr.Val.Type(), c.LLVMModule.NewGlobalDef(symbol.Name+"_0", constant.NewCharArrayFromString(node.Value.String())), constant.NewInt(types.I64, 0))
+							global_.Init = ptrConst
+						}
+					} else {
+						lhsAlloca := c.ctx.lookupVariable(symbol.Name)
+						print(lhsAlloca, " lhs alloca herr question?\n")
+						print("something?\n")
+						print(cr.Val.String(), " : cr val\n")
+						print("something?2\n")
+						print(cr.Val.Type().String(), " : cr val type\n")
+						print(lhsAlloca.String(), " : lhs alloca\n")
+						c.ctx.NewStore(cr.Val, lhsAlloca)
+					}
+				}
 			}
 			print(symbol.Type, cr.Type, "hello symbol type here\n")
 		}
@@ -492,16 +573,21 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 		// Code gen: Return statement
-		// currFuncBlock := c.currentFunction()
-		c.ctx.NewRet(cr.Val)
-		// currFuncBlock.block.NewRet(llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.ReturnValue.String(), 0))
-
+		print(cr.Val.String(), " : cr val in return statement\n")
+		if cr.Val.Type().Equal(types.NewPointer(llirgen.GetLLVMIRType(cr.Type))) {
+			// If it's an alloca, load its value.
+			crVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
+			c.ctx.NewRet(crVal)
+		} else {
+			// If it's already a load instruction, use it directly.
+			c.ctx.NewRet(cr.Val)
+		}
 		return CompileResult{Type: cr.Type}, nil
 
 	case *ast.StringLiteral:
 		str := &object.String{Value: node.Value}
-		print(str, " : haha i in string literal\n")
-		return CompileResult{Type: string(str.Type())}, nil
+		print(node.Value, " : haha i in string literal\n")
+		return CompileResult{Type: string(str.Type()), Val: constant.NewCharArrayFromString(node.Value)}, nil
 
 	case *ast.IntegerLiteral:
 		fmt.Printf("Type of curr node in integer literal: %T\n", node.Value)
@@ -594,12 +680,18 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 						if err != nil {
 							return CompileResult{}, fmt.Errorf("error compiling argument %d: %w", i, err)
 						}
-						fnArgs[i] = crExpVal.Val
+						if crExpVal.Val.Type().Equal(types.NewPointer(llirgen.GetLLVMIRType(crExpVal.Type))) {
+							print("i was right\n")
+							fnArgs[i] = crExpVal.Val
+						} else {
+							newAlloca := funcBlock.NewAlloca(llirgen.GetLLVMIRType(crExpVal.Type))
+							newAlloca.SetName("arg" + strconv.Itoa(i))
+							funcBlock.NewStore(crExpVal.Val, newAlloca)
+							fnArgs[i] = newAlloca
+						}
 					}
-					// callInst := funcBlock.block.NewCall(funcBlockCaller.function, fnArgs...)
 					callInst := funcBlock.NewCall(funcBlockCaller.function, fnArgs...)
-					print(callInst.String(), " : callInst\n")
-					// retValue := funcBlock.block.NewExtractValue(callInst, 0)
+					print(callInst.String(), " ", callInst.LLString(), " : callInst\n")
 					return CompileResult{Type: symbol.Type, Val: callInst}, nil
 				} else {
 					// function not found in inner scopes - might be a call expression in program body
@@ -612,19 +704,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 						if err != nil {
 							return CompileResult{}, err
 						}
-						// funcBlock := funcMap["entry"]
-						// funcBlockCaller := funcMap[currentFuncName]
-						// fnArgs := make([]value.Value, len(node.Arguments))
-						// for i, arg := range node.Arguments {
-						// 	crExpVal, err := c.Compile(arg)
-						// 	if err != nil {
-						// 		return CompileResult{}, fmt.Errorf("error compiling argument %d: %w", i, err)
-						// 	}
-						// 	fnArgs[i] = crExpVal.Val
-						// }
-						// callInst := funcBlock.block.NewCall(funcBlockCaller.function, fnArgs...)
-						// print(callInst.String(), " : callInst\n")
-						// retValue := funcBlock.block.NewExtractValue(callInst, 0)
 						return CompileResult{Type: symbol.Type}, nil
 					}
 				}
@@ -862,6 +941,48 @@ func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression) (CompileResu
 		boolVal := constant.NewInt(types.I1, 1)
 		getboolEntry.NewRet(constant.NewInt(types.I1, 1))
 		return CompileResult{Type: "bool", Val: boolVal}, nil
+	case "putstring":
+		putstring := m.NewFunc("putstring", types.I1)
+		putstring.Params = append(putstring.Params, ir.NewParam("paramValue", types.NewPointer(types.I8)))
+		putStringEntry := putstring.NewBlock("putString.entry")
+		loaded := putStringEntry.NewLoad(types.NewPointer(types.I8), putstring.Params[0])
+		formatStrGlobal := m.NewGlobalDef(".textstr", constant.NewCharArrayFromString("%s\n\x00"))
+		indices := []value.Value{
+			constant.NewInt(types.I64, 0), // Index 0 to access the first element.
+			constant.NewInt(types.I64, 0), // Index 0 again, since it's a flat array.
+		}
+		formatStrPtr := putStringEntry.NewGetElementPtr(formatStrGlobal.Typ.ElemType, formatStrGlobal, indices...)
+		cr, err := c.Compile(node.Arguments[0])
+		if err != nil {
+			return CompileResult{}, fmt.Errorf("error compiling argument for putString: %w", err)
+		}
+		putStringEntry.NewCall(
+			m.NewFunc("printf", types.I32, ir.NewParam("format", types.NewPointer(types.I8))),
+			formatStrPtr,
+			loaded, // Pass the string argument to printf.
+		)
+		putStringEntry.NewRet(constant.NewInt(types.I1, 1))
+		callInstFromMain := funcMap["entry"].block.NewCall(putstring, cr.Val)
+		return CompileResult{Type: "bool", Val: callInstFromMain}, nil
+	case "getstring":
+		getstring := m.NewFunc("getstring", types.NewArray(30, types.I8))
+		getstringEntry := getstring.NewBlock("getstring.entry")
+		formatStrGlobal := m.NewGlobalDef(".textstr", constant.NewCharArrayFromString("%s"))
+		indices := []value.Value{
+			constant.NewInt(types.I64, 0), // Index 0 to access the first element.
+			constant.NewInt(types.I64, 0), // Index 0 again, since it's a flat array.
+		}
+		formatStrPtr := getstringEntry.NewGetElementPtr(formatStrGlobal.Typ.ElemType, formatStrGlobal, indices...)
+		inputBuffer := getstringEntry.NewAlloca(types.NewArray(256, types.I8))
+		getstringEntry.NewCall(
+			m.NewFunc("scanf", types.I32, ir.NewParam("format", types.NewPointer(types.I8))),
+			formatStrPtr,
+			inputBuffer, // Pass the pointer to the input buffer.
+		)
+		getstringEntry.NewRet(inputBuffer)
+		callInstFromMain := funcMap["entry"].block.NewCall(getstring)
+		print(callInstFromMain.String(), " : callInstFromMain\n")
+		return CompileResult{Type: "string", Val: callInstFromMain}, nil
 	default:
 		return CompileResult{}, nil
 	}
@@ -965,20 +1086,65 @@ func (c *Compiler) isBooleanExpression(expr string) bool {
 func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixExpression, cr CompileResult, cr_ CompileResult) value.Value {
 	switch node.Operator {
 	case "+":
-		return funcBlock.block.NewAdd(cr.Val, cr_.Val)
-	case "-":
-		return funcBlock.block.NewSub(cr.Val, cr_.Val)
-	case "*":
-		if _, ok := cr.Val.(*ir.InstAlloca); ok {
-			// Load the value if cr.Val is an *ir.InstAlloca
-			val := funcBlock.block.NewLoad(types.I64, cr.Val)
-			return funcBlock.block.NewMul(val, cr_.Val)
-		} else if _, ok := cr_.Val.(*ir.InstAlloca); ok {
-			// Load the value if cr_.Val is an *ir.InstAlloca
-			val := funcBlock.block.NewLoad(types.I64, cr_.Val)
-			return funcBlock.block.NewMul(cr.Val, val)
+		var crVal, crVal_ value.Value
+		// Check if cr.Val is an alloca.
+		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
+			// If it's an alloca, load its value.
+			crVal = funcBlock.block.NewLoad(types.I64, cr.Val)
+		} else {
+			// If it's already a load instruction, use it directly.
+			crVal = cr.Val
 		}
-		return funcBlock.block.NewMul(cr.Val, cr_.Val)
+
+		// Repeat the same process for cr_.Val.
+		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
+			crVal_ = funcBlock.block.NewLoad(types.I64, cr_.Val)
+		} else {
+			crVal_ = cr_.Val
+		}
+
+		// Perform addition using the loaded values.
+		return funcBlock.block.NewAdd(crVal, crVal_)
+	case "-":
+		var crVal, crVal_ value.Value
+		// Check if cr.Val is an alloca.
+		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
+			// If it's an alloca, load its value.
+			crVal = funcBlock.block.NewLoad(types.I64, cr.Val)
+		} else {
+			// If it's already a load instruction, use it directly.
+			crVal = cr.Val
+		}
+
+		// Repeat the same process for cr_.Val.
+		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
+			crVal_ = funcBlock.block.NewLoad(types.I64, cr_.Val)
+		} else {
+			crVal_ = cr_.Val
+		}
+
+		// Perform addition using the loaded values.
+		return funcBlock.block.NewSub(crVal, crVal_)
+	case "*":
+		var crVal, crVal_ value.Value
+		// Check if cr.Val is an alloca.
+		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
+			// If it's an alloca, load its value.
+			crVal = funcBlock.block.NewLoad(types.I64, cr.Val)
+		} else {
+			// If it's already a load instruction, use it directly.
+			crVal = cr.Val
+		}
+
+		// Repeat the same process for cr_.Val.
+		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
+			crVal_ = funcBlock.block.NewLoad(types.I64, cr_.Val)
+		} else {
+			crVal_ = cr_.Val
+		}
+
+		// Perform addition using the loaded values.
+		return funcBlock.block.NewMul(crVal, crVal_)
 	case "/":
 		return funcBlock.block.NewSDiv(cr.Val, cr_.Val)
 	case "<":
@@ -990,7 +1156,25 @@ func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixE
 	case ">=":
 		return funcBlock.block.NewICmp(enum.IPredSGE, cr.Val, cr_.Val)
 	case "==":
-		return funcBlock.block.NewICmp(enum.IPredEQ, cr.Val, cr_.Val)
+		var crVal, crVal_ value.Value
+		// Check if cr.Val is an alloca.
+		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
+			// If it's an alloca, load its value.
+			crVal = funcBlock.block.NewLoad(types.I64, cr.Val)
+		} else {
+			// If it's already a load instruction, use it directly.
+			crVal = cr.Val
+		}
+
+		// Repeat the same process for cr_.Val.
+		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
+			crVal_ = funcBlock.block.NewLoad(types.I64, cr_.Val)
+		} else {
+			crVal_ = cr_.Val
+		}
+
+		// Perform comparison using the loaded values.
+		return funcBlock.block.NewICmp(enum.IPredEQ, crVal, crVal_)
 	case "!=":
 		return funcBlock.block.NewICmp(enum.IPredNE, cr.Val, cr_.Val)
 	default:
