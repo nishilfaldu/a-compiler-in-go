@@ -4,7 +4,9 @@ import (
 	"a-compiler-in-go/src/7west/src/7west/ast"
 	"a-compiler-in-go/src/7west/src/7west/llirgen"
 	"a-compiler-in-go/src/7west/src/7west/object"
+	"bufio"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -453,16 +455,20 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if node.Destination.Expression != nil {
 			cr_, err_ := c.Compile(node.Destination)
 			// print(node.Destination.String(), "\n")
-			print("i have to be right herer\n")
 			if err != nil {
 				return CompileResult{}, err_
 			}
 			if cr_.Type != cr.Type {
 				return CompileResult{}, fmt.Errorf("type mismatch in array assignment: cannot assign %s to %s", cr.Type, cr_.Type)
 			}
-			print(cr.Val.String(), " : cr val in AssignmentStatement case\n")
-			loaded := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
-			c.ctx.Block.NewStore(loaded, cr_.Val)
+			if _, ok := node.Value.(*ast.Identifier); ok {
+				// where right is an identifier - not sure if it will work for all variables
+				loaded := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
+				c.ctx.NewStore(loaded, cr_.Val)
+			} else {
+				// array assignment where right is also an array indexing operation
+				c.ctx.Block.NewStore(cr.Val, cr_.Val)
+			}
 		} else {
 			// // Compile the identifier part of the destination
 			symbol, ok := c.symbolTable.Resolve(node.Destination.Identifier.Value)
@@ -717,7 +723,9 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		// print(val.String(), " : extracted val in index expression\n")
 		// block.NewStore(constant.NewInt(types.I64, 5), pToElem)
 		// remove the [] from the type string
-		return CompileResult{Type: subTyp, Val: pToElem}, nil
+		loadedValue := block.NewLoad(llirgen.GetLLVMIRType(subTyp), pToElem)
+		print(loadedValue.String(), " : loaded value\n")
+		return CompileResult{Type: subTyp, Val: loadedValue}, nil
 
 	case *ast.CallExpression:
 		fmt.Printf("Type of curr node in call expression: %T\n", node.Function)
@@ -1004,53 +1012,34 @@ func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression) (CompileResu
 		callInstFromMain := funcMap["entry"].block.NewCall(putinteger, cr.Val)
 		return CompileResult{Type: "bool", Val: callInstFromMain}, nil
 	case "getbool":
-		getbool := m.NewFunc("getbool", llirgen.GetLLVMIRType("bool"))
-		getboolEntry := getbool.NewBlock("getbool.entry")
-		boolVal := constant.NewInt(types.I1, 1)
-		getboolEntry.NewRet(constant.NewInt(types.I1, 1))
-		return CompileResult{Type: "bool", Val: boolVal}, nil
-	case "putstring":
-		putstring := m.NewFunc("putstring", types.I1)
-		putstring.Params = append(putstring.Params, ir.NewParam("paramValue", types.NewPointer(types.I8)))
-		putStringEntry := putstring.NewBlock("putString.entry")
-		loaded := putStringEntry.NewLoad(types.NewPointer(types.I8), putstring.Params[0])
-		formatStrGlobal := m.NewGlobalDef(".textstr", constant.NewCharArrayFromString("%s\n\x00"))
-		indices := []value.Value{
-			constant.NewInt(types.I64, 0), // Index 0 to access the first element.
-			constant.NewInt(types.I64, 0), // Index 0 again, since it's a flat array.
-		}
-		formatStrPtr := putStringEntry.NewGetElementPtr(formatStrGlobal.Typ.ElemType, formatStrGlobal, indices...)
-		cr, err := c.Compile(node.Arguments[0])
-		if err != nil {
-			return CompileResult{}, fmt.Errorf("error compiling argument for putString: %w", err)
-		}
-		putStringEntry.NewCall(
-			m.NewFunc("printf", types.I32, ir.NewParam("format", types.NewPointer(types.I8))),
-			formatStrPtr,
-			loaded, // Pass the string argument to printf.
-		)
-		putStringEntry.NewRet(constant.NewInt(types.I1, 1))
-		callInstFromMain := funcMap["entry"].block.NewCall(putstring, cr.Val)
-		return CompileResult{Type: "bool", Val: callInstFromMain}, nil
+		fmt.Print("Enter a boolean (0 or 1): ")
+		var b int
+		fmt.Scan(&b)
+		// Eat newline
+		fmt.Scanln()
+		// return b != 0
+		return CompileResult{Type: "bool", Val: constant.NewInt(types.I1, int64(b))}, nil
 	case "getstring":
-		getstring := m.NewFunc("getstring", types.NewArray(30, types.I8))
-		getstringEntry := getstring.NewBlock("getstring.entry")
-		formatStrGlobal := m.NewGlobalDef(".textstr", constant.NewCharArrayFromString("%s"))
-		indices := []value.Value{
-			constant.NewInt(types.I64, 0), // Index 0 to access the first element.
-			constant.NewInt(types.I64, 0), // Index 0 again, since it's a flat array.
-		}
-		formatStrPtr := getstringEntry.NewGetElementPtr(formatStrGlobal.Typ.ElemType, formatStrGlobal, indices...)
-		inputBuffer := getstringEntry.NewAlloca(types.NewArray(256, types.I8))
-		getstringEntry.NewCall(
-			m.NewFunc("scanf", types.I32, ir.NewParam("format", types.NewPointer(types.I8))),
-			formatStrPtr,
-			inputBuffer, // Pass the pointer to the input buffer.
-		)
-		getstringEntry.NewRet(inputBuffer)
-		callInstFromMain := funcMap["entry"].block.NewCall(getstring)
-		print(callInstFromMain.String(), " : callInstFromMain\n")
-		return CompileResult{Type: "string", Val: callInstFromMain}, nil
+		fmt.Print("Enter a string: ")
+		reader := bufio.NewReader(os.Stdin)
+		s, _ := reader.ReadString('\n')
+		// Remove newline character
+		s = strings.TrimSpace(s)
+		return CompileResult{Type: "string", Val: constant.NewCharArrayFromString(s)}, nil
+	case "getinteger":
+		var i int
+		fmt.Print("Enter an integer: ")
+		fmt.Scan(&i)
+		// Eat newline
+		fmt.Scanln()
+		return CompileResult{Type: "integer", Val: constant.NewInt(types.I64, int64(i))}, nil
+	case "getfloat":
+		fmt.Print("Enter a float: ")
+		var f float64
+		fmt.Scan(&f)
+		// Eat newline
+		fmt.Scanln()
+		return CompileResult{Type: "float", Val: constant.NewFloat(types.Float, f)}, nil
 	default:
 		return CompileResult{}, nil
 	}
