@@ -8,7 +8,7 @@ variable out : bool;
 
 procedure Fib : integer(variable val : integer)
 	variable tmp :integer[2]; // change to float
-	variable loopVal : integer;
+	variable loopVal : integer; 
     variable ret : integer;
 
 	begin

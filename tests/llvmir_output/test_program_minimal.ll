@@ -25,6 +25,9 @@ f:
         %2 = mul i64 %1, 4
         %3 = load i64, i64* %x
         %4 = add i64 %3, %2
+        br label %f.exit
+
+f.exit:
         ret i64 %4
 }
 

@@ -37,7 +37,8 @@ func (ctx *Context) HasTerminator() bool {
 
 	// Check if the last instruction is a terminator instruction
 	// print(lastInstr.LLString(), " : last instruction\n")
-	print(ctx.Block.Term == nil, " woppsie\n")
+	// print(ctx.Block.Term.LLString(), " : last instruction\n")
+	print(ctx.Block.Term != nil, " woppsie\n")
 	return ctx.Block.Term != nil
 }
 
@@ -186,8 +187,11 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if function.Name != "entry" {
 			return CompileResult{}, fmt.Errorf("entry function not found")
 		}
-		currFuncBlock := funcMap[function.Name]
-		llirgen.LLVMIRReturn(currFuncBlock.block, constant.NewInt(types.I64, 0))
+		if !c.ctx.HasTerminator() {
+			c.ctx.NewRet(constant.NewInt(types.I64, 0))
+		} else {
+			c.ctx.leaveBlock.NewRet(constant.NewInt(types.I64, 0))
+		}
 
 	case *ast.VariableDeclaration:
 		function, ok := c.symbolTable.getCurrentFunction()
@@ -205,8 +209,10 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			// Then, define the symbol in the symbol table as an array
 			if c.symbolTable.IsGlobalScope() {
 				c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, GlobalScope)
-				// global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.Name.Value, node.Type.Name+"[]")
 				global := c.LLVMModule.NewGlobalDef(node.Name.Value, constant.NewArray(types.NewArray(uint64(node.Type.Array.Value), llirgen.GetLLVMIRType(node.Type.Name))))
+				if node.Type.Name == "integer" {
+					global.Init = constant.NewZeroInitializer(types.NewArray(uint64(node.Type.Array.Value), llirgen.GetLLVMIRType(node.Type.Name)))
+				}
 				c.ctx.vars[node.Name.Value] = global
 			} else {
 				symbol := c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, LocalScope)
@@ -300,42 +306,87 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 	case *ast.LoopStatement:
 		// Compile the initialization statement
 		currentFunction := c.ctx.Parent
-		loopCtx := c.ctx.NewContext(currentFunction.NewBlock("for.loop.body"))
-		c.ctx.NewBr(loopCtx.Block)
+		print(currentFunction.Name() + " is parent of loop stmt \n")
+		loopCondCtx := c.ctx.NewContext(currentFunction.NewBlock("for.cond"))
+		loopBodyCtx := c.ctx.NewContext(currentFunction.NewBlock("for.body"))
+		// endBodyCtx := c.ctx.NewContext(currentFunction.NewBlock("for.end"))
+		leaveForBlock := currentFunction.NewBlock("leave.for.loop")
 
-		// _, err := c.Compile(node.InitStatement)
-		// if err != nil {
-		// 	return CompileResult{}, err
-		// }
-		initName := node.InitStatement.Destination.Identifier.Value
-		initExprCr, err := c.Compile(node.InitStatement.Value)
+		// initName := node.InitStatement.Destination.Identifier.Value
+		_, err := c.Compile(node.InitStatement)
 		if err != nil {
 			return CompileResult{}, fmt.Errorf("error compiling loop initialization expression: %w", err)
 		}
-		firstAppear := loopCtx.NewPhi(ir.NewIncoming(initExprCr.Val, c.ctx.Block))
-		loopCtx.vars[initName] = firstAppear
-		leaveB := currentFunction.NewBlock("leave.for.loop")
-		loopCtx.leaveBlock = leaveB
+		// in the entry body
+		// initAlloca := c.ctx.vars[initName]
+		// print(c.ctx.Parent.String(), " : parent context\n")
+		// print(initAlloca.String(), " : init alloca\n")
+		// c.ctx.NewStore(initExprCr.Val, initAlloca)
+
+		// add a break in the entry body
+		x := c.ctx.NewBr(loopCondCtx.Block)
+		print(x.LLString(), " : new br\n")
+
 		// Compile the loop condition
+		c.ctx = loopCondCtx
 		crCond, err_ := c.Compile(node.Condition)
 		if err_ != nil {
-			return CompileResult{}, err_
+			return CompileResult{}, fmt.Errorf("error compiling loop condition: %w", err_)
 		}
 		conditionExprString := node.Condition.String()
 		if !c.isBooleanExpression(conditionExprString) {
 			return CompileResult{}, fmt.Errorf("loop condition must be a boolean expression")
 		}
 
+		loopCondCtx.NewCondBr(crCond.Val, loopBodyCtx.Block, leaveForBlock)
+		c.ctx = c.ctx.parent
+		// endBodyCtx.NewRet(nil)
+
 		// Compile the loop body
+		c.ctx = loopBodyCtx
 		_, err = c.Compile(node.Body)
 		if err != nil {
 			return CompileResult{}, err
 		}
+		loopBodyCtx.NewBr(loopCondCtx.Block)
+		c.ctx = c.ctx.parent
+		c.ctx.leaveBlock = leaveForBlock // set this to allow breaks from within the loop body
 
-		leaveB.NewRet(nil)
-		loopCtx.NewCondBr(crCond.Val, loopCtx.Block, leaveB)
+		// loopCtx := c.ctx.NewContext(currentFunction.NewBlock("for.loop.body"))
+		// x := c.ctx.Block.NewBr(loopCtx.Block)
+		// print(x.LLString(), " : new br\n")
+
+		// initName := node.InitStatement.Destination.Identifier.Value
+		// initExprCr, err := c.Compile(node.InitStatement.Value)
+		// if err != nil {
+		// 	return CompileResult{}, fmt.Errorf("error compiling loop initialization expression: %w", err)
+		// }
+		// separate here: ======
+		// firstAppear := loopCtx.NewPhi(ir.NewIncoming(initExprCr.Val, c.ctx.Block))
+		// loopCtx.vars[initName] = firstAppear
+		// leaveB := currentFunction.NewBlock("leave.for.loop")
+		// loopCtx.leaveBlock = leaveB
+		// // Compile the loop condition
+		// crCond, err_ := c.Compile(node.Condition)
+		// if err_ != nil {
+		// 	return CompileResult{}, err_
+		// }
+		// conditionExprString := node.Condition.String()
+		// if !c.isBooleanExpression(conditionExprString) {
+		// 	return CompileResult{}, fmt.Errorf("loop condition must be a boolean expression")
+		// }
+
+		// // Compile the loop body
+		// _, err = c.Compile(node.Body)
+		// if err != nil {
+		// 	return CompileResult{}, err
+		// }
+
+		// leaveB.NewRet(nil)
+		// c.ctx.NewCondBr(crCond.Val, loopCtx.Block, leaveB)
 
 	case *ast.ForBlockStatement:
+		print("i did run okay in for block?\n")
 		for _, stmt := range node.Statements {
 			_, err := c.Compile(stmt)
 			if err != nil {
@@ -391,15 +442,19 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			if !ok {
 				return CompileResult{}, fmt.Errorf("could not retrieve current function")
 			}
-			currFuncBlock := funcMap[function.Name]
+			// currFuncBlock := funcMap[function.Name]
 			print(function.Name, " : function name in Infix Expr\n")
 			print(cr.Val.String(), cr_.Val.String(), " : cr val in Infix Expr\n")
-			exprValue := c.CompileInfixExpression(currFuncBlock, node, cr, cr_)
+			exprValue := c.CompileInfixExpression(c.ctx.Block, node, cr, cr_)
 			return CompileResult{Type: cr.Type, Val: exprValue}, nil
 		}
 
 	case *ast.IfExpression:
-		print(node.Condition.String(), " - condition\n")
+		currentFunction := c.ctx.Parent
+		thenCtx := c.ctx.NewContext(currentFunction.NewBlock("if.then"))
+		elseCtx := c.ctx.NewContext(currentFunction.NewBlock("if.else"))
+		leaveIfBlock := currentFunction.NewBlock("leave.if")
+
 		crCond, err := c.Compile(node.Condition)
 		if err != nil {
 			return CompileResult{}, err
@@ -408,45 +463,42 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		if !c.isBooleanExpression(conditionExprString) {
 			return CompileResult{}, fmt.Errorf("if condition must be a boolean expression")
 		}
-		// print(thenCtx.String(), " ", crCond.Val.String(), " : thenCtx\n")
-		currentFunction := c.ctx.Parent
-		thenCtx := c.ctx.NewContext(currentFunction.NewBlock("if.then"))
-		// elseB := currentFunction.NewBlock("if.else")
-		// elseCtx := c.ctx.NewContext(elseB)
-		c.ctx = thenCtx
 
-		print(node.Consequence.String(), " - consequence\n")
+		c.ctx.NewCondBr(crCond.Val, thenCtx.Block, elseCtx.Block)
+
+		c.ctx = thenCtx
 		_, err_ := c.Compile(node.Consequence)
 		if err_ != nil {
 			return CompileResult{}, err
 		}
-
+		thenCtx.NewBr(leaveIfBlock)
 		c.ctx = c.ctx.parent
-
-		print(thenCtx.String(), " ", crCond.Val.String(), " : thenCtx\n")
+		c.ctx.leaveBlock = leaveIfBlock
 
 		// thenCtx.HasTerminator()
 		// else block
 		if node.Alternative != nil {
-			// c.ctx = elseCtx
+			c.ctx = elseCtx
 			_, err := c.Compile(node.Alternative)
 			if err != nil {
 				return CompileResult{}, err
 			}
-			// c.ctx = c.ctx.parent
+			elseCtx.NewBr(leaveIfBlock)
+			c.ctx = c.ctx.parent
+		}
+
+		if node.Alternative == nil {
+			if !elseCtx.HasTerminator() {
+				elseCtx.NewBr(leaveIfBlock)
+			}
 		}
 		// TODO: when you dont have a terminator - i.e. return statement
-		if !thenCtx.HasTerminator() {
-			print("this should run - 1\n")
-			thenCtx.NewBr(c.ctx.Block)
-		}
-		// if !elseCtx.HasTerminator() {
-		// 	print("this should run - 2\n")
-		// 	elseCtx.NewBr(c.ctx.Block)
+		// if !thenCtx.HasTerminator() {
+		// 	print("this should run - 1\n")
+		// 	thenCtx.NewBr(c.ctx.Block)
 		// }
-		x := c.ctx.NewCondBr(crCond.Val, thenCtx.Block, nil)
-		print(c.ctx.LLString(), " : then block\n")
-		print(x.LLString(), " : new cond br\n")
+
+		// x := c.ctx.NewCondBr(crCond.Val, thenCtx.Block, nil)
 		return CompileResult{Type: crCond.Type}, nil
 
 	case *ast.IfBlockStatement:
@@ -644,14 +696,24 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 
 		// Code gen: Return statement
-		print(cr.Val.String(), " : cr val in return statement\n")
+		// Check if there's already a terminator
+		if !c.ctx.HasTerminator() {
+			exitBlock := c.ctx.Parent.NewBlock(c.ctx.Parent.Name() + ".exit")
+			c.ctx.NewBr(exitBlock) // Branch to the exit block if no terminator exists
+			exitBlock.NewRet(cr.Val)
+			return CompileResult{Type: cr.Type}, nil
+		}
+
 		if cr.Val.Type().Equal(types.NewPointer(llirgen.GetLLVMIRType(cr.Type))) {
 			// If it's an alloca, load its value.
-			crVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
-			c.ctx.NewRet(crVal)
+			// crVal := c.ctx.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
+			// c.ctx.NewRet(crVal)
+			crVal := c.ctx.leaveBlock.NewLoad(llirgen.GetLLVMIRType(cr.Type), cr.Val)
+			c.ctx.leaveBlock.NewRet(crVal)
 		} else {
 			// If it's already a load instruction, use it directly.
-			c.ctx.NewRet(cr.Val)
+			// c.ctx.NewRet(cr.Val)
+			c.ctx.leaveBlock.NewRet(cr.Val)
 		}
 		return CompileResult{Type: cr.Type}, nil
 
@@ -752,7 +814,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			if builtinWithExists(currentFuncName) {
 				c.compileBuiltInFunction(node)
 				// TODO: uncomment the below after installing llvm
-				return c.insertRuntimeFunctions(node)
+				return c.insertRuntimeFunctions(node, c.ctx.Block)
 			} else {
 				// Try to resolve the function name in inner scopes
 				symbol, ok := c.symbolTable.ResolveInner(currentFuncName)
@@ -989,7 +1051,7 @@ func (c *Compiler) checkEnoughArgumentsAndCompile(node *ast.CallExpression, expe
 	}
 }
 
-func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression) (CompileResult, error) {
+func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression, block *ir.Block) (CompileResult, error) {
 	// Insert runtime functions
 	// putinteger
 	// putfloat
@@ -1025,8 +1087,9 @@ func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression) (CompileResu
 		)
 		putintegerEntry.NewRet(constant.NewInt(types.I1, 1))
 
-		callInstFromMain := funcMap["entry"].block.NewCall(putinteger, cr.Val)
-		return CompileResult{Type: "bool", Val: callInstFromMain}, nil
+		// callInstFromMain := funcMap["entry"].block.NewCall(putinteger, cr.Val)
+		callInstFromBlock := block.NewCall(putinteger, cr.Val)
+		return CompileResult{Type: "bool", Val: callInstFromBlock}, nil
 	case "getbool":
 		fmt.Print("Enter a boolean (0 or 1): ")
 		var b int
@@ -1159,20 +1222,21 @@ func (c *Compiler) isBooleanExpression(expr string) bool {
 func (c *Compiler) CompilePrefixExpression(funcBlock *FuncBlock, node *ast.PrefixExpression, cr CompileResult) value.Value {
 	switch node.Operator {
 	case "-":
-		return funcBlock.block.NewFNeg(cr.Val)
+		print("anythings???\n")
+		return funcBlock.block.NewSub(constant.NewInt(types.I64, 0), cr.Val)
 	default:
 		panic("Unimplemented prefix expression")
 	}
 }
 
-func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixExpression, cr CompileResult, cr_ CompileResult) value.Value {
+func (c *Compiler) CompileInfixExpression(block *ir.Block, node *ast.InfixExpression, cr CompileResult, cr_ CompileResult) value.Value {
 	switch node.Operator {
 	case "+":
 		var crVal, crVal_ value.Value
 		// Check if cr.Val is an alloca.
 		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
 			// If it's an alloca, load its value.
-			crVal = funcBlock.block.NewLoad(types.I64, cr.Val)
+			crVal = block.NewLoad(types.I64, cr.Val)
 		} else {
 			// If it's already a load instruction, use it directly.
 			crVal = cr.Val
@@ -1180,19 +1244,19 @@ func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixE
 
 		// Repeat the same process for cr_.Val.
 		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
-			crVal_ = funcBlock.block.NewLoad(types.I64, cr_.Val)
+			crVal_ = block.NewLoad(types.I64, cr_.Val)
 		} else {
 			crVal_ = cr_.Val
 		}
 
 		// Perform addition using the loaded values.
-		return funcBlock.block.NewAdd(crVal, crVal_)
+		return block.NewAdd(crVal, crVal_)
 	case "-":
 		var crVal, crVal_ value.Value
 		// Check if cr.Val is an alloca.
 		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
 			// If it's an alloca, load its value.
-			crVal = funcBlock.block.NewLoad(types.I64, cr.Val)
+			crVal = block.NewLoad(types.I64, cr.Val)
 		} else {
 			// If it's already a load instruction, use it directly.
 			crVal = cr.Val
@@ -1200,19 +1264,19 @@ func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixE
 
 		// Repeat the same process for cr_.Val.
 		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
-			crVal_ = funcBlock.block.NewLoad(types.I64, cr_.Val)
+			crVal_ = block.NewLoad(types.I64, cr_.Val)
 		} else {
 			crVal_ = cr_.Val
 		}
 
 		// Perform addition using the loaded values.
-		return funcBlock.block.NewSub(crVal, crVal_)
+		return block.NewSub(crVal, crVal_)
 	case "*":
 		var crVal, crVal_ value.Value
 		// Check if cr.Val is an alloca.
 		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
 			// If it's an alloca, load its value.
-			crVal = funcBlock.block.NewLoad(types.I64, cr.Val)
+			crVal = block.NewLoad(types.I64, cr.Val)
 		} else {
 			// If it's already a load instruction, use it directly.
 			crVal = cr.Val
@@ -1220,29 +1284,21 @@ func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixE
 
 		// Repeat the same process for cr_.Val.
 		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
-			crVal_ = funcBlock.block.NewLoad(types.I64, cr_.Val)
+			crVal_ = block.NewLoad(types.I64, cr_.Val)
 		} else {
 			crVal_ = cr_.Val
 		}
 
 		// Perform addition using the loaded values.
-		return funcBlock.block.NewMul(crVal, crVal_)
+		return block.NewMul(crVal, crVal_)
 	case "/":
-		return funcBlock.block.NewSDiv(cr.Val, cr_.Val)
+		return block.NewSDiv(cr.Val, cr_.Val)
 	case "<":
-		return funcBlock.block.NewICmp(enum.IPredSLT, cr.Val, cr_.Val)
-	case ">":
-		return funcBlock.block.NewICmp(enum.IPredSGT, cr.Val, cr_.Val)
-	case "<=":
-		return funcBlock.block.NewICmp(enum.IPredSLE, cr.Val, cr_.Val)
-	case ">=":
-		return funcBlock.block.NewICmp(enum.IPredSGE, cr.Val, cr_.Val)
-	case "==":
 		var crVal, crVal_ value.Value
 		// Check if cr.Val is an alloca.
 		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
 			// If it's an alloca, load its value.
-			crVal = funcBlock.block.NewLoad(types.I64, cr.Val)
+			crVal = block.NewLoad(types.I64, cr.Val)
 		} else {
 			// If it's already a load instruction, use it directly.
 			crVal = cr.Val
@@ -1250,15 +1306,110 @@ func (c *Compiler) CompileInfixExpression(funcBlock *FuncBlock, node *ast.InfixE
 
 		// Repeat the same process for cr_.Val.
 		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
-			crVal_ = funcBlock.block.NewLoad(types.I64, cr_.Val)
+			crVal_ = block.NewLoad(types.I64, cr_.Val)
+		} else {
+			crVal_ = cr_.Val
+		}
+
+		// Perform addition using the loaded values.
+		return block.NewICmp(enum.IPredSLT, crVal, crVal_)
+	case ">":
+		var crVal, crVal_ value.Value
+		// Check if cr.Val is an alloca.
+		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
+			// If it's an alloca, load its value.
+			crVal = block.NewLoad(types.I64, cr.Val)
+		} else {
+			// If it's already a load instruction, use it directly.
+			crVal = cr.Val
+		}
+
+		// Repeat the same process for cr_.Val.
+		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
+			crVal_ = block.NewLoad(types.I64, cr_.Val)
+		} else {
+			crVal_ = cr_.Val
+		}
+
+		return block.NewICmp(enum.IPredSGT, crVal, crVal_)
+	case "<=":
+		var crVal, crVal_ value.Value
+		// Check if cr.Val is an alloca.
+		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
+			// If it's an alloca, load its value.
+			crVal = block.NewLoad(types.I64, cr.Val)
+		} else {
+			// If it's already a load instruction, use it directly.
+			crVal = cr.Val
+		}
+
+		// Repeat the same process for cr_.Val.
+		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
+			crVal_ = block.NewLoad(types.I64, cr_.Val)
+		} else {
+			crVal_ = cr_.Val
+		}
+
+		// Perform addition using the loaded values.
+		return block.NewICmp(enum.IPredSLE, crVal, crVal_)
+	case ">=":
+		var crVal, crVal_ value.Value
+		// Check if cr.Val is an alloca.
+		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
+			// If it's an alloca, load its value.
+			crVal = block.NewLoad(types.I64, cr.Val)
+		} else {
+			// If it's already a load instruction, use it directly.
+			crVal = cr.Val
+		}
+
+		// Repeat the same process for cr_.Val.
+		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
+			crVal_ = block.NewLoad(types.I64, cr_.Val)
+		} else {
+			crVal_ = cr_.Val
+		}
+
+		return block.NewICmp(enum.IPredSGE, crVal, crVal_)
+	case "==":
+		var crVal, crVal_ value.Value
+		// Check if cr.Val is an alloca.
+		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
+			// If it's an alloca, load its value.
+			crVal = block.NewLoad(types.I64, cr.Val)
+		} else {
+			// If it's already a load instruction, use it directly.
+			crVal = cr.Val
+		}
+
+		// Repeat the same process for cr_.Val.
+		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
+			crVal_ = block.NewLoad(types.I64, cr_.Val)
 		} else {
 			crVal_ = cr_.Val
 		}
 
 		// Perform comparison using the loaded values.
-		return funcBlock.block.NewICmp(enum.IPredEQ, crVal, crVal_)
+		return block.NewICmp(enum.IPredEQ, crVal, crVal_)
 	case "!=":
-		return funcBlock.block.NewICmp(enum.IPredNE, cr.Val, cr_.Val)
+		var crVal, crVal_ value.Value
+		// Check if cr.Val is an alloca.
+		if cr.Val.Type().Equal(types.NewPointer(types.I64)) {
+			// If it's an alloca, load its value.
+			crVal = block.NewLoad(types.I64, cr.Val)
+		} else {
+			// If it's already a load instruction, use it directly.
+			crVal = cr.Val
+		}
+
+		// Repeat the same process for cr_.Val.
+		if cr_.Val.Type().Equal(types.NewPointer(types.I64)) {
+			crVal_ = block.NewLoad(types.I64, cr_.Val)
+		} else {
+			crVal_ = cr_.Val
+		}
+
+		return block.NewICmp(enum.IPredNE, crVal, crVal_)
 	default:
 		panic("Unimplemented infix expression")
 	}
