@@ -1,3 +1,4 @@
+@putstring.str = global [4 x i8] c"%s\0A\00"
 @x = global i64 0
 @i = global i64 0
 @max = global i64 0
@@ -7,7 +8,7 @@
 
 define i64 @main() {
 entry:
-        store i64 20, i64* @max
+        store i64 5, i64* @max
         store i64 0, i64* @i
         br label %for.cond
 
@@ -30,6 +31,17 @@ for.body:
 leave.for.loop:
         ret i64 0
 }
+
+define i1 @putstring(i8* %paramValue) {
+putstring.entry:
+        %0 = getelementptr [4 x i8], [4 x i8]* @putstring.str, i64 0, i64 0
+        %1 = call i32 @printf(i8* %0, i8* %paramValue)
+        ret i1 true
+}
+
+declare i32 @printf(i8* %format)
+
+declare i32 @strcmp(i8* %s1, i8* %s2)
 
 define i64 @fib(i64* %val) {
 fib:
@@ -81,5 +93,3 @@ putinteger.entry:
         %2 = call i32 @printf(i8* %1, i64 %0)
         ret i1 true
 }
-
-declare i32 @printf(i8* %format)
