@@ -81,7 +81,7 @@ func GetLLVMIRType(type_ string) types.Type {
 		return types.I1
 	case "string":
 		// String = array of 8 bit ints
-		return types.NewArray(30, types.I8)
+		return types.NewPointer(types.I8)
 	case "integer[]":
 		return types.NewArray(8, types.I64)
 	case "void":
@@ -102,7 +102,8 @@ func GetLLVMIRConstant(type_ string) constant.Constant {
 	case "bool":
 		return constant.NewInt(types.I1, 1)
 	case "string":
-		return constant.NewNull(types.NewPointer(types.NewArray(255, types.I8)))
+		return constant.NewNull(types.I8Ptr)
+		// return constant.NewNull(types.NewPointer(types.NewArray(255, types.I8)))
 	case "integer[]":
 		return constant.NewArray(&types.ArrayType{TypeName: types.I64.TypeName}, constant.NewInt(types.I64, 0))
 	case "string[]":

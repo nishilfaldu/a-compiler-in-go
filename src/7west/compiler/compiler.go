@@ -4,9 +4,7 @@ import (
 	"a-compiler-in-go/src/7west/src/7west/ast"
 	"a-compiler-in-go/src/7west/src/7west/llirgen"
 	"a-compiler-in-go/src/7west/src/7west/object"
-	"bufio"
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -74,6 +72,7 @@ type Compiler struct {
 	symbolTable *SymbolTable
 	LLVMModule  *ir.Module
 	ctx         *Context
+	ifCounter   int
 }
 
 type CompileResult struct {
@@ -130,6 +129,7 @@ func New() *Compiler {
 		// STEP 1: create a module in program header
 		LLVMModule: LLVMModule,
 		ctx:        ctx,
+		ifCounter:  0,
 	}
 }
 
@@ -159,6 +159,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		// STEP 1: create a module in program header
 		// var LLVMModule = llirgen.LLVMIRModule()
 		// Code gen: Set main entrypoint
+		c.InsertPutStringAtRuntime() // Insert "putstring" string at runtime
+		c.DeclareStrCmp()
 
 	case *ast.ProgramBody:
 		for _, decl := range node.Declarations {
@@ -216,10 +218,8 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				c.ctx.vars[node.Name.Value] = global
 			} else {
 				symbol := c.symbolTable.DefineArray(node.Name.Value, node.Type.Name+"[]", node.Type.Array.Value, LocalScope)
-				// alloca := llirgen.LLVMIRAlloca(currFuncBlock.block, node.Name.Value, node.Type.Name+"[]")
 				alloca := currFuncBlock.block.NewAlloca(types.NewArray(uint64(node.Type.Array.Value), llirgen.GetLLVMIRType(node.Type.Name)))
 				alloca.SetName(node.Name.Value)
-				print(alloca.String(), " : alloha\n")
 				c.ctx.vars[node.Name.Value] = alloca
 				print(symbol.Name, symbol.Index, symbol.Scope, "in Variable Declaration case\n")
 			}
@@ -258,7 +258,6 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 				return CompileResult{}, fmt.Errorf("array size must be an integer")
 			}
 			symbol := c.symbolTable.DefineArray(node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name+"[]", node.VariableDeclaration.Type.Array.Value, GlobalScope)
-			// global := llirgen.LLVMIRGlobalVariable(c.LLVMModule, node.VariableDeclaration.Name.Value, node.VariableDeclaration.Type.Name+"[]")
 			global := c.LLVMModule.NewGlobalDef(node.VariableDeclaration.Name.Value, constant.NewArray(types.NewArray(uint64(node.VariableDeclaration.Type.Array.Value), llirgen.GetLLVMIRType(node.VariableDeclaration.Type.Name))))
 			c.ctx.vars[node.VariableDeclaration.Name.Value] = global
 			print(symbol.Name, symbol.Index, symbol.Scope, "1 - in Global Variable Declaration case\n")
@@ -451,9 +450,10 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 
 	case *ast.IfExpression:
 		currentFunction := c.ctx.Parent
-		thenCtx := c.ctx.NewContext(currentFunction.NewBlock("if.then"))
-		elseCtx := c.ctx.NewContext(currentFunction.NewBlock("if.else"))
-		leaveIfBlock := currentFunction.NewBlock("leave.if")
+		thenCtx := c.ctx.NewContext(currentFunction.NewBlock("if.then" + strconv.Itoa(c.ifCounter)))
+		elseCtx := c.ctx.NewContext(currentFunction.NewBlock("if.else" + strconv.Itoa(c.ifCounter)))
+		leaveIfBlock := currentFunction.NewBlock("leave.if" + strconv.Itoa(c.ifCounter))
+		leaveCtx := c.ctx.NewContext(leaveIfBlock)
 
 		crCond, err := c.Compile(node.Condition)
 		if err != nil {
@@ -464,14 +464,20 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			return CompileResult{}, fmt.Errorf("if condition must be a boolean expression")
 		}
 
+		if crCondVal, ok := crCond.Val.(*ir.Global); ok {
+			loaded := c.ctx.NewLoad(llirgen.GetLLVMIRType(crCond.Type), crCondVal)
+			crCond.Val = loaded
+		}
+
 		c.ctx.NewCondBr(crCond.Val, thenCtx.Block, elseCtx.Block)
+		print(c.ctx.LLString(), " : ctx in if expr\n")
 
 		c.ctx = thenCtx
 		_, err_ := c.Compile(node.Consequence)
 		if err_ != nil {
 			return CompileResult{}, err
 		}
-		thenCtx.NewBr(leaveIfBlock)
+		thenCtx.NewBr(leaveCtx.Block)
 		c.ctx = c.ctx.parent
 		c.ctx.leaveBlock = leaveIfBlock
 
@@ -483,23 +489,18 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			if err != nil {
 				return CompileResult{}, err
 			}
-			elseCtx.NewBr(leaveIfBlock)
+			elseCtx.NewBr(leaveCtx.Block)
 			c.ctx = c.ctx.parent
 		}
 
-		if node.Alternative == nil {
-			if !elseCtx.HasTerminator() {
-				elseCtx.NewBr(leaveIfBlock)
-			}
-		}
-		// TODO: when you dont have a terminator - i.e. return statement
-		// if !thenCtx.HasTerminator() {
-		// 	print("this should run - 1\n")
-		// 	thenCtx.NewBr(c.ctx.Block)
+		// if node.Alternative == nil {
+		// 	if !elseCtx.HasTerminator() {
+		// 		elseCtx.NewBr(leaveIfBlock)
+		// 	}
 		// }
-
-		// x := c.ctx.NewCondBr(crCond.Val, thenCtx.Block, nil)
-		return CompileResult{Type: crCond.Type}, nil
+		c.ctx = leaveCtx
+		c.ifCounter += 1
+		return CompileResult{}, nil
 
 	case *ast.IfBlockStatement:
 		print(len(node.Statements), " - len of statements\n")
@@ -514,6 +515,7 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 	case *ast.AssignmentStatement:
 		fmt.Printf("Type of curr node in assignment statement: %T\n", node.Value)
 		cr, err := c.Compile(node.Value)
+		print(cr.Type, " : cr type in AssignmentStatement case\n")
 		print(node.Value.String(), " : node value in AssignmentStatement case\n")
 		if err != nil {
 			return CompileResult{}, err
@@ -690,13 +692,24 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 		}
 		if cr.Type != function.ReturnType {
 			if typesCompatible(cr.Type, function.ReturnType) {
-				return CompileResult{Type: function.ReturnType}, nil
+				print("is me the problem here?\n")
+				if c.ctx.leaveBlock != nil {
+					// If there's a terminator, return from the leave block
+					c.ctx.leaveBlock.NewRet(cr.Val)
+					return CompileResult{Type: function.ReturnType}, nil
+				}
+				// return CompileResult{Type: function.ReturnType}, nil
 			}
 			return CompileResult{}, fmt.Errorf("type mismatch for function %s: cannot return %s from function of type %s", function.Name, cr.Type, function.ReturnType)
 		}
-
 		// Code gen: Return statement
 		// Check if there's already a terminator
+		if c.ctx.leaveBlock != nil {
+			// If there's a terminator, return from the leave block
+			c.ctx.leaveBlock.NewRet(cr.Val)
+			return CompileResult{Type: cr.Type}, nil
+		}
+
 		if !c.ctx.HasTerminator() {
 			exitBlock := c.ctx.Parent.NewBlock(c.ctx.Parent.Name() + ".exit")
 			c.ctx.NewBr(exitBlock) // Branch to the exit block if no terminator exists
@@ -814,7 +827,11 @@ func (c *Compiler) Compile(node ast.Node) (CompileResult, error) {
 			if builtinWithExists(currentFuncName) {
 				c.compileBuiltInFunction(node)
 				// TODO: uncomment the below after installing llvm
-				return c.insertRuntimeFunctions(node, c.ctx.Block)
+				if c.ctx.leaveBlock != nil {
+					return c.insertRuntimeFunctions(node, c.ctx.leaveBlock)
+				} else {
+					return c.insertRuntimeFunctions(node, c.ctx.Block)
+				}
 			} else {
 				// Try to resolve the function name in inner scopes
 				symbol, ok := c.symbolTable.ResolveInner(currentFuncName)
@@ -1051,6 +1068,34 @@ func (c *Compiler) checkEnoughArgumentsAndCompile(node *ast.CallExpression, expe
 	}
 }
 
+func (c *Compiler) InsertPutStringAtRuntime() {
+	m := c.LLVMModule
+	putstring := m.NewFunc("putstring", types.I1)
+	putstring.Params = append(putstring.Params, ir.NewParam("paramValue", types.NewPointer(types.I8)))
+
+	putstringEntry := putstring.NewBlock("putstring.entry")
+	formatStrGlobal := m.NewGlobalDef("putstring.str", constant.NewCharArrayFromString("%s\n\x00"))
+
+	indices := []value.Value{
+		constant.NewInt(types.I64, 0),
+		constant.NewInt(types.I64, 0),
+	}
+	formatStrPtr := putstringEntry.NewGetElementPtr(formatStrGlobal.Typ.ElemType, formatStrGlobal, indices...)
+
+	printf := m.NewFunc("printf", types.I32, ir.NewParam("format", types.NewPointer(types.I8)))
+	putstringEntry.NewCall(printf, formatStrPtr, putstring.Params[0])
+
+	putstringEntry.NewRet(constant.NewInt(types.I1, 1))
+}
+
+func (c *Compiler) DeclareStrCmp() {
+	m := c.LLVMModule
+	strcmp := m.NewFunc("strcmp", types.I32,
+		ir.NewParam("s1", types.I8Ptr),
+		ir.NewParam("s2", types.I8Ptr))
+	strcmp.Sig.Variadic = false
+}
+
 func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression, block *ir.Block) (CompileResult, error) {
 	// Insert runtime functions
 	// putinteger
@@ -1090,6 +1135,48 @@ func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression, block *ir.Bl
 		// callInstFromMain := funcMap["entry"].block.NewCall(putinteger, cr.Val)
 		callInstFromBlock := block.NewCall(putinteger, cr.Val)
 		return CompileResult{Type: "bool", Val: callInstFromBlock}, nil
+
+	case "putstring":
+		// putstring := m.NewFunc("putstring", types.I1)                                                      // Define the function returning bool
+		// putstring.Params = append(putstring.Params, ir.NewParam("paramValue", types.NewPointer(types.I8))) // Pointer to i8 for C-style strings
+
+		// putstringEntry := putstring.NewBlock("putstring.entry")
+		// formatStrGlobal := m.NewGlobalDef("putstring.str", constant.NewCharArrayFromString("%s\n\x00")) // Format string for printf
+
+		// // Define indices for the getelementptr instruction for accessing the string
+		// indices := []value.Value{
+		// 	constant.NewInt(types.I64, 0), // Index 0 to access the first element of the array
+		// 	constant.NewInt(types.I64, 0), // Index 0 again, since it's a flat array
+		// }
+		// formatStrPtr := putstringEntry.NewGetElementPtr(formatStrGlobal.Typ.ElemType, formatStrGlobal, indices...)
+
+		// cr, err := c.Compile(node.Arguments[0]) // Assume the argument is the string to print
+		// if err != nil {
+		// 	return CompileResult{}, fmt.Errorf("error compiling argument for putstring: %w", err)
+		// }
+
+		// // Call printf with the format string pointer and the string argument
+		// putstringEntry.NewCall(
+		// 	m.NewFunc("printf", types.I32, ir.NewParam("format", types.NewPointer(types.I8))),
+		// 	formatStrPtr,
+		// 	cr.Val, // Pass the string argument to printf
+		// )
+		// putstringEntry.NewRet(constant.NewInt(types.I1, 1)) // Return true (1)
+		cr, err := c.Compile(node.Arguments[0]) // Compile the argument to get the value
+		if err != nil {
+			return CompileResult{}, err
+		}
+		var call *ir.InstCall
+
+		for _, f := range m.Funcs {
+			if f.Name() == "putstring" {
+				call = block.NewCall(f, cr.Val)
+			}
+		}
+		// Use the function in another context (e.g., calling it from a main block)
+		// callInstFromBlock := block.NewCall(putstring, cr.Val)
+		return CompileResult{Type: "bool", Val: call}, nil
+
 	case "getbool":
 		fmt.Print("Enter a boolean (0 or 1): ")
 		var b int
@@ -1099,12 +1186,55 @@ func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression, block *ir.Bl
 		// return b != 0
 		return CompileResult{Type: "bool", Val: constant.NewInt(types.I1, int64(b))}, nil
 	case "getstring":
-		fmt.Print("Enter a string: ")
-		reader := bufio.NewReader(os.Stdin)
-		s, _ := reader.ReadString('\n')
-		// Remove newline character
-		s = strings.TrimSpace(s)
-		return CompileResult{Type: "string", Val: constant.NewCharArrayFromString(s)}, nil
+		// define global stdinp
+		stdinp := m.NewGlobalDef("__stdinp", constant.NewNull(types.I8Ptr))
+		stdinp.Typ = types.NewPointer(types.I8) // Setting the type to ptr (i8*)
+
+		getline := m.NewFunc("getline", types.I64,
+			ir.NewParam("buf", types.NewPointer(types.I8)),   // ptr %0
+			ir.NewParam("size", types.NewPointer(types.I64)), // ptr %1
+			ir.NewParam("file", types.I8Ptr),                 // ptr %2
+		)
+		// Define `getstring` function
+		getString := m.NewFunc("getstring", types.I8Ptr)
+		entry := getString.NewBlock("entry")
+
+		bufPtr := entry.NewAlloca(types.I8Ptr)
+		lenPtr := entry.NewAlloca(types.I64)
+		read := entry.NewAlloca(types.I64)
+
+		// Initialize pointers and integers
+		entry.NewStore(constant.NewNull(types.I8Ptr), bufPtr)
+		entry.NewStore(constant.NewInt(types.I64, 0), lenPtr)
+
+		// Load external global stdin pointer
+		stdinVal := entry.NewLoad(stdinp.Typ, stdinp)
+
+		// Call getline function
+		call := entry.NewCall(getline, bufPtr, lenPtr, stdinVal)
+
+		// Store the result of getline
+		entry.NewStore(call, read)
+
+		// Load the buffer pointer for further use
+		loadedBufPtr := entry.NewLoad(types.I8Ptr, bufPtr)
+		loadedRead := entry.NewLoad(types.I64, read)
+
+		// Adjust the string by setting the last character to null (presumed newline removal)
+		lastIndex := entry.NewSub(loadedRead, constant.NewInt(types.I64, 1))
+		charPtr := entry.NewGetElementPtr(types.I8, loadedBufPtr, lastIndex)
+		entry.NewStore(constant.NewInt(types.I8, 0), charPtr)
+
+		// Load the buffer pointer again for return
+		finalBufPtr := entry.NewLoad(types.I8Ptr, bufPtr)
+		entry.NewRet(finalBufPtr)
+
+		block.NewCall(getString)
+
+		print(entry.LLString(), " : getString-block\n")
+
+		return CompileResult{Type: "string", Val: finalBufPtr}, nil
+
 	case "getinteger":
 		var i int
 		fmt.Print("Enter an integer: ")
