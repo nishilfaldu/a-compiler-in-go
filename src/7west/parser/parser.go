@@ -106,12 +106,8 @@ func New(l *lexer.Lexer) *Parser {
 
 // nextToken advances the tokens for the parser
 func (p *Parser) nextToken() {
-	// print(p.currentToken.Literal, " . ", p.peekToken.Literal, "\n")
-
 	p.currentToken = p.peekToken
 	p.peekToken = p.l.NextToken()
-	// print(p.currentToken.Literal, " . ", p.peekToken.Literal, "\n")
-
 }
 
 func (p *Parser) ParseProgram() *ast.Program {
@@ -122,7 +118,6 @@ func (p *Parser) ParseProgram() *ast.Program {
 
 	// Parse the program body
 	program.Body = p.parseProgramBody()
-	print("finish\n")
 	return program
 }
 
@@ -131,7 +126,6 @@ func (p *Parser) parseProgramHeader() *ast.ProgramHeader {
 	programHeader := &ast.ProgramHeader{}
 	// Ensure that the next token is "program"
 	if !p.expectPeek(token.PROGRAM) {
-		// print("bla bla\n")
 		return nil
 	}
 	programHeader.Token = p.currentToken
@@ -157,30 +151,20 @@ func (p *Parser) parseProgramBody() *ast.ProgramBody {
 	programBody.Statements = []ast.Statement{}
 	programBody.Declarations = []ast.Declaration{}
 
-	print("in parseprogram body 1 ", p.currentToken.Literal, "\n")
-
 	// Parse declarations until "begin" keyword
 	for !p.currentTokenIs(token.BEGIN) && !p.currentTokenIs(token.EOF) {
-		print("are you here achaa? \n")
 		decl := p.parseDeclaration()
 		if decl != nil {
 			switch d := decl.(type) {
 			case *ast.VariableDeclaration:
-				print("whats up 1\n")
 				programBody.Declarations = append(programBody.Declarations, d)
 			case *ast.ProcedureDeclaration:
-				print("whats up 2\n")
 				programBody.Declarations = append(programBody.Declarations, d)
 			case *ast.GlobalVariableDeclaration:
-				print("whats up 3\n")
 				programBody.Declarations = append(programBody.Declarations, d)
 			}
 		}
-		print("here hello ", p.currentToken.Literal, "\n")
-		// p.nextToken()
 	}
-
-	print("in parse program body 2 ", p.currentToken.Literal, "\n")
 	// TODO: might have advance to another token?
 	// Check for "begin" keyword
 	if !p.currentTokenIs(token.BEGIN) {
@@ -188,7 +172,6 @@ func (p *Parser) parseProgramBody() *ast.ProgramBody {
 	}
 
 	p.nextToken() // Consume "begin"
-	print("in parse program body 3 ", p.currentToken.Literal, "\n")
 	// Parse statements until "end program" keyword
 	for !p.currentTokenIs(token.END) && !p.peekTokenIs(token.PROGRAM) && !p.currentTokenIs(token.EOF) {
 		stmt := p.parseStatement()
@@ -201,16 +184,9 @@ func (p *Parser) parseProgramBody() *ast.ProgramBody {
 	if p.currentTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
-	print("in parse program body 3.5 ", p.currentToken.Literal, "\n")
 	// TODO: edit this to expect format
 	p.nextToken() // Consume "end"
-	print("in parse program body 4 ", p.currentToken.Literal, "\n")
 	p.nextToken() // Consume "program"
-	print("in parse program body 5 ", p.currentToken.Literal, "\n")
-
-	// if p.currentTokenIs(token.SEMICOLON) {
-	// 	p.nextToken() // Consume ";"
-	// }
 
 	return programBody
 }
@@ -227,7 +203,6 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.RETURN:
 		return p.parseReturnStatement()
 	default:
-		// return p.parseExpressionStatement()
 		return nil
 	}
 }
@@ -249,7 +224,6 @@ func (p *Parser) parseProcedureDeclaration() *ast.ProcedureDeclaration {
 // which allows it to return either *ast.Procedure or ast.Declaration.
 // You can then handle the returned value accordingly in the calling code.
 func (p *Parser) parseDeclaration() interface{} {
-	print("running? parse declaration\n")
 	switch p.currentToken.Type {
 	case token.GLOBAL:
 		return p.parseGlobalVariableDeclaration()
@@ -257,7 +231,6 @@ func (p *Parser) parseDeclaration() interface{} {
 		return p.parseVariableDeclaration()
 	case token.PROCEDURE:
 		return p.parseProcedureDeclaration()
-	// TODO: think about parseStatement here or not
 	default:
 		return nil
 	}
@@ -266,14 +239,11 @@ func (p *Parser) parseDeclaration() interface{} {
 // parseGlobalVariableStatement parses a global variable statement
 func (p *Parser) parseGlobalVariableDeclaration() *ast.GlobalVariableDeclaration {
 	gdecl := &ast.GlobalVariableDeclaration{Token: p.currentToken}
-	print("hello under water ", p.currentToken.Literal, "\n")
 
 	if !p.expectPeek(token.VARIABLE) {
 		return nil
 	}
 	gdecl.VariableDeclaration = p.parseVariableDeclaration()
-
-	print("gdecl", gdecl.String(), "\n")
 
 	return gdecl
 
@@ -281,24 +251,20 @@ func (p *Parser) parseGlobalVariableDeclaration() *ast.GlobalVariableDeclaration
 
 // parseVariableDeclaration parses a variable declaration
 func (p *Parser) parseVariableDeclaration() *ast.VariableDeclaration {
-	print("here in variable declaration 1", p.currentToken.Literal, "\n")
 	decl := &ast.VariableDeclaration{Token: p.currentToken}
 
 	if !p.expectPeek(token.IDENTIFIER) {
 		return nil
 	}
-	print("here in variable declaration 2", p.currentToken.Literal, "\n")
 	decl.Name = &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
 
 	if !p.expectPeek(token.COLON) {
 		return nil
 	}
-	print("here in variable declaration 3", p.currentToken.Literal, "\n")
 	p.nextToken() // consume the colon
 	if !p.currentTokenIs(token.INTEGER) && !p.currentTokenIs(token.BOOLEAN) && !p.currentTokenIs(token.STRING) && !p.currentTokenIs(token.FLOAT) {
 		return nil
 	}
-	print("bla bla bla\n")
 	// Parse the type mark
 	typeMark := &ast.TypeMark{Token: p.currentToken, Name: p.currentToken.Literal}
 
@@ -325,37 +291,10 @@ func (p *Parser) parseVariableDeclaration() *ast.VariableDeclaration {
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
-	print("here in variable declaration 4", p.currentToken.Literal, "\n")
-	print("whats token here: ", p.currentToken.Literal, "\n")
 
 	p.nextToken() // consume the semicolon
 	return decl
 }
-
-// parseVariableStatement parses a variable statement
-// func (p *Parser) parseVariableStatement() *ast.VariableStatement {
-// 	stmt := &ast.VariableStatement{Token: p.currentToken}
-
-// 	if !p.expectPeek(token.IDENTIFIER) {
-// 		return nil
-// 	}
-
-// 	stmt.Name = &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
-
-// 	if !p.expectPeek(token.ASSIGN) {
-// 		return nil
-// 	}
-
-// 	p.nextToken()
-
-// 	stmt.Value = p.parseExpression(LOWEST)
-
-// 	if p.peekTokenIs(token.SEMICOLON) {
-// 		p.nextToken()
-// 	}
-
-// 	return stmt
-// }
 
 // parseAssignmentStatement parses an assignment statement
 // AssignmentStatement: destination ':=' expression ';'
@@ -368,18 +307,14 @@ func (p *Parser) parseAssignmentStatement() *ast.AssignmentStatement {
 	if !p.expectPeek(token.ASSIGN) {
 		return nil
 	}
-	print("in assign statement 1", p.currentToken.Literal, "\n")
 	p.nextToken() // Consume the ':=' token
 
 	// Parse the expression
 	stmt.Value = p.parseExpression(LOWEST)
-	print("in assign statement 2 ", p.currentToken.Literal, "\n")
 	if p.peekTokenIs(token.SEMICOLON) {
-		print("true\n")
 		p.nextToken()
 		p.nextToken() // Consume the ';' token
 	}
-	print("in assign statement 3 ", p.currentToken.Literal, "\n")
 	return stmt
 }
 
@@ -387,11 +322,7 @@ func (p *Parser) parseAssignmentStatement() *ast.AssignmentStatement {
 // Destination: identifier ('[' expression ']')?
 func (p *Parser) parseDestination() *ast.Destination {
 	dest := &ast.Destination{}
-	print("here in destination ", p.currentToken.Literal, "\n")
 	// Parse the identifier
-	// if !p.expectPeek(token.IDENTIFIER) {
-	// 	return nil
-	// }
 	dest.Identifier = &ast.Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
 
 	// Check if there's an array index
@@ -417,7 +348,6 @@ func (p *Parser) parseIndexAssignment() ast.Expression {
 // LoopStatement: 'for' '(' AssignmentStatement ';' Expression ')' (Statement ';')* 'end for'
 func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 	loopStmt := &ast.LoopStatement{Token: p.currentToken}
-	print("here in loop statement ", p.currentToken.Literal, "\n")
 
 	// Check for '('
 	if !p.expectPeek(token.LPAREN) {
@@ -431,12 +361,7 @@ func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 	if p.currentTokenIs(token.SEMICOLON) {
 		p.nextToken() // Consume the ';'
 	}
-	// Check for ';'
-	// if !p.expectPeek(token.SEMICOLON) {
-	// 	return nil
-	// }
-	print("here in loop statement 2 ", p.currentToken.Literal, "\n")
-	// p.nextToken() // Consume the ';'
+
 	loopStmt.Condition = p.parseExpression(LOWEST)
 
 	// Check for ')'
@@ -455,7 +380,6 @@ func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 	// }
 	// p.nextToken() // Consume "end"
 	// p.nextToken() // Consume "for"
-	print("here in loop statement 3 ", p.currentToken.Literal, "\n")
 	if !p.expectPeek(token.FOR) {
 		return nil
 	}
@@ -473,7 +397,6 @@ func (p *Parser) parseLoopStatement() *ast.LoopStatement {
 }
 
 func (p *Parser) parseForBlockStatement() *ast.ForBlockStatement {
-	print("in parse for block statement 1 ", p.currentToken.Literal, "\n")
 	block := &ast.ForBlockStatement{}
 	block.Statements = []ast.Statement{}
 
@@ -486,12 +409,6 @@ func (p *Parser) parseForBlockStatement() *ast.ForBlockStatement {
 		}
 		// p.nextToken()
 	}
-
-	// if !p.currentTokenIs(token.END) && !p.peekTokenIs(token.FOR) {
-	// 	return nil
-	// }
-	// p.nextToken() // Consume "end"
-	// p.nextToken() // Consume "for"
 
 	return block
 }
@@ -524,14 +441,12 @@ func (p *Parser) Errors() []string {
 }
 
 func (p *Parser) peekError(t token.TokenType) {
-	print("when")
 	msg := fmt.Sprintf("expected next token to be %s, got %s instead", t, p.peekToken.Type)
 	p.errors = append(p.errors, msg)
 }
 
 // parseReturnStatement parses a return statement
 func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
-	print("here in return statement 1", p.currentToken.Literal, "\n")
 	stmt := &ast.ReturnStatement{Token: p.currentToken}
 
 	p.nextToken()
@@ -541,9 +456,7 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
-	print("here in return statement 2 ", p.currentToken.Literal, "\n")
 	p.nextToken() // consume SEMICOLON
-	print("here in return statement 3 ", p.currentToken.Literal, "\n")
 	return stmt
 }
 
@@ -573,7 +486,6 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 	// If it’s not there, that’s okay too, we don’t add an error to the parser if it’s not there.
 	// That’s because we want expression statements to have optional semicolons
 	// (which makes it easier to type something like 5 + 5 into the REPL later on).
-	print("here in expression statement ", p.currentToken.Literal, "\n")
 	if p.currentTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
@@ -585,29 +497,22 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	// defer untrace(trace("parseExpression"))
 
 	prefix := p.prefixParseFns[p.currentToken.Type]
-	print(p.currentToken.Literal, " after prefix\n")
 	if prefix == nil {
 		p.noPrefixParseFnError(p.currentToken.Type)
 		return nil
 	}
 	leftExp := prefix()
-	print("after leftExp ", p.currentToken.Literal, "\n")
 
-	print("precedence ", precedence, " ", p.peekPrecendence(), "\n")
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecendence() {
-		print("peek token type ", p.peekToken.Type, "\n")
 		infix := p.infixParseFns[p.peekToken.Type]
 		if infix == nil {
 			return leftExp
 		}
 		// we advance the tokens and call the infix function
-		print("here in parse expression ", p.currentToken.Literal, "\n")
 		p.nextToken()
-		print("parseExp 1 ", p.currentToken.Literal, "\n")
 		leftExp = infix(leftExp)
 	}
 
-	print("parseExp 2 ", p.currentToken.Literal, "\n")
 	return leftExp
 }
 
@@ -706,7 +611,6 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 
 	precedence := p.currentPrecendence()
 	p.nextToken()
-	print("here in infix expression ", p.currentToken.Literal, "\n")
 	expression.Right = p.parseExpression(precedence)
 
 	return expression
@@ -770,7 +674,6 @@ func (p *Parser) parseIfExpression() ast.Expression {
 
 		expression.Alternative = p.parseIfBlockStatement()
 	}
-	print("here in parse ifexpr ", p.currentToken.Literal, "\n")
 	if !p.expectPeek(token.IF) {
 		return nil
 	}
@@ -793,7 +696,6 @@ func (p *Parser) parseIfExpression() ast.Expression {
 // { with p.curToken being of type token.LBRACE
 func (p *Parser) parseIfBlockStatement() *ast.IfBlockStatement {
 	// defer untrace(trace("parseBlockStatement"))
-	print("here in block statement ", p.currentToken.Literal, "\n")
 	block := &ast.IfBlockStatement{Token: p.currentToken}
 	block.Statements = []ast.Statement{}
 
@@ -807,19 +709,11 @@ func (p *Parser) parseIfBlockStatement() *ast.IfBlockStatement {
 		// p.nextToken()
 	}
 
-	// if !p.currentTokenIs(token.END) && !p.peekTokenIs(token.IF) {
-	// 	return nil
-	// }
-	// p.nextToken() // Consume "end"
-	// p.nextToken() // Consume "if" / "for"
-	print("here in block statement 2 ", p.currentToken.Literal, "\n")
-
 	return block
 }
 
 func (p *Parser) parseProcedureHeader() *ast.ProcedureHeader {
 	header := &ast.ProcedureHeader{Token: p.currentToken}
-	print("here in procedure header 1 ", p.currentToken.Literal, "\n")
 
 	// Parse the procedure name
 	if !p.expectPeek(token.IDENTIFIER) {
@@ -858,22 +752,9 @@ func (p *Parser) parseProcedureHeader() *ast.ProcedureHeader {
 }
 
 func (p *Parser) parseProcedureBody() *ast.ProcedureBody {
-	print("in procedure body\n")
 	procedureBody := &ast.ProcedureBody{}
 	procedureBody.Statements = []ast.Statement{}
 	procedureBody.Declarations = []ast.Declaration{}
-
-	// for p.currentToken.Type != token.END {
-	// 	// Parse either a declaration or a statement
-	// 	if decl, ok := p.parseDeclaration().(*ast.VariableDeclaration); ok {
-	// 		body.Declarations = append(body.Declarations, decl)
-	// 	} else if proc, ok := p.parseDeclaration().(*ast.ProcedureDeclaration); ok {
-	// 		body.Declarations = append(body.Declarations, proc)
-	// 	} else if stmt := p.parseStatement(); stmt != nil {
-	// 		body.Statements = append(body.Statements, stmt)
-	// 	}
-	// 	p.nextToken()
-	// }
 
 	// Parse declarations until "begin" keyword
 	// TODO: condition needs to be updated
@@ -882,18 +763,13 @@ func (p *Parser) parseProcedureBody() *ast.ProcedureBody {
 		if decl != nil {
 			switch d := decl.(type) {
 			case *ast.VariableDeclaration:
-				print("whats up 3\n")
 				procedureBody.Declarations = append(procedureBody.Declarations, d)
 			case *ast.ProcedureDeclaration:
-				print("whats up 4\n")
 				procedureBody.Declarations = append(procedureBody.Declarations, d)
 			case *ast.GlobalVariableDeclaration:
-				print("whats up 5\n")
 				procedureBody.Declarations = append(procedureBody.Declarations, d)
 			}
 		}
-		print("here hello ", p.currentToken.Literal, "\n")
-		// p.nextToken()
 	}
 	// // TODO: might have advance to another token?
 	// // Check for "begin" keyword
@@ -901,12 +777,10 @@ func (p *Parser) parseProcedureBody() *ast.ProcedureBody {
 		return nil
 	}
 
-	print("reached here in proc body 1 ", p.currentToken.Literal, "\n")
 	p.nextToken() // Consume "begin"
 
 	// Parse statements until "end procedure" keyword
 	for !p.currentTokenIs(token.END) && !p.currentTokenIs(token.EOF) {
-		print("here in proc body statements ", p.currentToken.Literal, "\n")
 		stmt := p.parseStatement()
 		if stmt != nil {
 			procedureBody.Statements = append(procedureBody.Statements, stmt)
@@ -914,13 +788,8 @@ func (p *Parser) parseProcedureBody() *ast.ProcedureBody {
 		// p.nextToken()
 	}
 
-	print("reached here in proc body 2 ", p.currentToken.Literal, "\n")
 	p.nextToken() // Consume "end"
-	print("reached here in proc body 3 ", p.currentToken.Literal, "\n")
 	p.nextToken() // Consume "procedure"
-	print("reached here with ", p.currentToken.Literal, "\n")
-	// p.nextToken() // Consume "end"
-	// p.nextToken() // Consume "procedure"
 
 	if p.currentTokenIs(token.SEMICOLON) {
 		p.nextToken() // Consume ";"
@@ -946,13 +815,11 @@ func (p *Parser) parseProcedureParameters() []*ast.VariableDeclaration {
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken() // move to comma
 		p.nextToken() // consume the comma
-		print("here in procedure parameters ", p.currentToken.Literal, "\n")
 		decl := p.parseVariableDeclarationAsParameter()
 		parameters = append(parameters, decl)
 	}
 
 	if !p.expectPeek(token.RPAREN) {
-		print("haha\n")
 		return nil
 	}
 
@@ -1003,7 +870,6 @@ func (p *Parser) parseVariableDeclarationAsParameter() *ast.VariableDeclaration 
 }
 
 func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
-	print("here in parse call expression ", p.currentToken.Literal, "\n")
 	exp := &ast.CallExpression{Token: p.currentToken, Function: function}
 	// exp.Arguments = p.parseCallArguments() - before
 	exp.Arguments = p.parseExpressionList(token.RPAREN) // - after (switched to a generalized function)
@@ -1044,12 +910,10 @@ func (p *Parser) parseArrayLiteral() ast.Expression {
 // this is a generalized method for parseExpressionList in an array and parseCallArguments
 func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 	list := []ast.Expression{}
-	print("here in parse expression list ", p.currentToken.Literal, "\n")
 	if p.peekTokenIs(end) {
 		p.nextToken()
 		return list
 	}
-	print("did it reach here in parse expression list? \n")
 	p.nextToken()
 	list = append(list, p.parseExpression(LOWEST))
 
@@ -1070,7 +934,6 @@ func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 
 func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 	exp := &ast.IndexExpression{Token: p.currentToken, Left: left}
-	print("here in parse index expression ", p.currentToken.Literal, "\n")
 	p.nextToken()
 	exp.Index = p.parseExpression(LOWEST)
 

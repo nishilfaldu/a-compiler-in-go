@@ -5,14 +5,14 @@ variable tmp : bool;
 
 procedure Proc1 : integer(variable val : integer)
 	procedure Proc2 : integer(variable val : integer)
-		procedure Proc1 : integer(variable val : integer)
+		procedure Proc3 : integer(variable val : integer)
 			begin
 				val := val + 1;
                 return val;
 		end procedure;
 		begin
 			val := val + 1;
-			val := Proc1(val);
+			val := Proc3(val);
             return val;
 	end procedure;
 	begin
