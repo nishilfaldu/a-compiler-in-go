@@ -1165,7 +1165,7 @@ func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression, block *ir.Bl
 
 	case "getstring":
 		// Define string constants for input prompt, scanf format, and output format.
-		strPrompt := m.NewGlobalDef(".strPrompt", constant.NewCharArrayFromString("Enter a string (up to 99 characters): \x00"))
+		strPrompt := m.NewGlobalDef(".strPrompt", constant.NewCharArrayFromString("Enter a string: \x00"))
 		strScanfFmt := m.NewGlobalDef(".strScanfFmt", constant.NewCharArrayFromString("%99s\x00"))
 
 		var scanf *ir.Func

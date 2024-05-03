@@ -88,6 +88,7 @@ func process(input []byte) {
 
 	// Execute the program
 	cmd = exec.Command("./" + executableFilename)
+	cmd.Stdin = os.Stdin // Connect the program's stdin to the terminal's stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	fmt.Println("Running the program:")

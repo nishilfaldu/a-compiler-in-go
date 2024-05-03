@@ -2,6 +2,8 @@ package lexer
 
 import (
 	"a-compiler-in-go/src/7west/src/7west/token"
+	"fmt"
+	"os"
 	"strings"
 )
 
@@ -180,9 +182,10 @@ func (l *Lexer) NextToken() token.Token {
 			return tok
 		} else {
 			// if it's not a letter, it could be an integer literal
-
 			// if it's not a digit, it's an illegal character or you can throw an error
-			tok = newToken(token.ILLEGAL, l.ch)
+			fmt.Fprintf(os.Stderr, "Lexer Error: illegal character - %s\n", string(l.ch))
+			os.Exit(1)
+			return tok
 		}
 	}
 	l.readChar()
