@@ -13,7 +13,7 @@ const (
 	ILLEGAL = "ILLEGAL"
 	EOF     = "EOF"
 	ERROR   = "ERROR"
-
+	DOT     = "."
 	// Identifiers + literals
 	IDENTIFIER = "IDENTIFIER" // add, foobar, x, y, ...
 

@@ -11,7 +11,7 @@ import (
 	"os/exec"
 )
 
-// the below code can be uncommented to be used like REPL
+// NOTE: the below code can be uncommented to be used like REPL
 // func main() {
 // 	// get the current user
 // 	user, err := user.Current()

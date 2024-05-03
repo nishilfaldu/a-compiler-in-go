@@ -1110,10 +1110,8 @@ func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression, block *ir.Bl
 	case "getbool":
 		fmt.Print("Enter a boolean (0 or 1): ")
 		var b int
-		fmt.Scan(&b)
-		// Eat newline
-		fmt.Scanln()
-		// return b != 0
+		// Use fmt.Scanf to read the integer and consume the newline character
+		fmt.Scanf("%d\n", &b)
 		return CompileResult{Type: "bool", Val: constant.NewInt(types.I1, int64(b))}, nil
 	case "getstring_":
 		// define global stdinp
@@ -1207,16 +1205,14 @@ func (c *Compiler) insertRuntimeFunctions(node *ast.CallExpression, block *ir.Bl
 	case "getinteger":
 		var i int
 		fmt.Print("Enter an integer: ")
-		fmt.Scan(&i)
-		// Eat newline
-		fmt.Scanln()
+		// Use fmt.Scanf to read the integer and consume the newline character
+		fmt.Scanf("%d\n", &i)
 		return CompileResult{Type: "integer", Val: constant.NewInt(types.I64, int64(i))}, nil
 	case "getfloat":
 		fmt.Print("Enter a float: ")
 		var f float64
-		fmt.Scan(&f)
-		// Eat newline
-		fmt.Scanln()
+		// Use fmt.Scanf to read the integer and consume the newline character
+		fmt.Scanf("%d\n", &f)
 		return CompileResult{Type: "float", Val: constant.NewFloat(types.Float, f)}, nil
 	default:
 		return CompileResult{}, nil

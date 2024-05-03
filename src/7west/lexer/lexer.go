@@ -16,7 +16,7 @@ type Lexer struct {
 }
 
 func New(input string) *Lexer {
-	l := &Lexer{input: strings.ToLower(input), line: 1}
+	l := &Lexer{input: input, line: 1}
 	l.readChar()
 	return l
 }
@@ -159,6 +159,8 @@ func (l *Lexer) NextToken() token.Token {
 			tok.Type = token.STRING
 			tok.Literal = str
 		}
+	case '.':
+		tok = newToken(token.DOT, l.ch)
 	case 0:
 		// we're at the end of the input
 		tok.Literal = ""
@@ -201,7 +203,7 @@ func (l *Lexer) readIdentifier() string {
 		l.readChar()
 	}
 	// return the substring of the input string from our starting position to our current position
-	return l.input[position:l.position]
+	return strings.ToLower(l.input[position:l.position])
 }
 
 // TODO: for now even a double/float is also treated as an integer - token name can be changed

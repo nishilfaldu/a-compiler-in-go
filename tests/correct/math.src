@@ -17,10 +17,8 @@ procedure Fib : integer(variable val : integer)
 		ret := 1;
 		return ret;
 	end if;
-	val := val - 1;
-	tmp1 := Fib(val);
-	val := val - 1;
-	tmp2 := Fib(val);
+	tmp1 := Fib(val - 1);
+	tmp2 := Fib(val - 2);
 	ret := tmp1 + tmp2;
 	return ret;
 end procedure;
